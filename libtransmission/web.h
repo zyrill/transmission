@@ -18,10 +18,26 @@ extern "C"
 struct tr_address;
 struct tr_web_task;
 
+/* status flags used by a tr_web_task's 'task->status_flag' and that correspond to a tr_webseed's 'w->task_flag' */
+enum
+{
+    TR_WEB_TASK_INIT = 1,
+    TR_WEB_TASK_PAUSED = 2,
+    TR_WEB_TASK_ADDR_INVALID = 3,
+    TR_WEB_TASK_ADDR_BLOCKED = 4,
+    TR_WEB_TASK_CORRUPT_DATA = 5,
+    TR_WEB_TASK_CONNECT_FAILED = 6,
+    TR_WEB_TASK_TOO_MANY_REDIRECTS = 7,
+    TR_WEB_TASK_NO_USABLE_DATA = 8,
+    TR_WEB_TASK_TIMED_OUT = 9,
+    TR_WEB_TASK_SUCCESS = 10
+};
+
 typedef enum
 {
+    TR_WEB_GET_ADDRESS = CURLINFO_PRIMARY_IP,
     TR_WEB_GET_CODE = CURLINFO_RESPONSE_CODE,
-    TR_WEB_GET_REDIRECTS = CURLINFO_REDIRECT_COUNT,
+    TR_WEB_GET_REDIRECT_COUNT = CURLINFO_REDIRECT_COUNT,
     TR_WEB_GET_REAL_URL = CURLINFO_EFFECTIVE_URL
 }
 tr_web_task_info;
@@ -35,8 +51,8 @@ tr_web_close_mode;
 
 void tr_webClose(tr_session* session, tr_web_close_mode close_mode);
 
-typedef void (* tr_web_done_func)(tr_session* session, bool did_connect_flag, bool timeout_flag, long response_code,
-    void const* response, size_t response_byte_count, void* user_data);
+typedef void (* tr_web_done_func)(tr_session* session, uint8_t status_flag, bool did_connect_flag, bool timeout_flag,
+    long response_code, void const* response, size_t response_byte_count, void* user_data);
 
 char const* tr_webGetResponseStr(long response_code);
 

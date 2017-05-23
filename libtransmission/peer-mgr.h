@@ -22,6 +22,11 @@
 #include "peer-common.h"
 #include "quark.h"
 
+enum
+{
+    MAX_BAD_PIECES_PER_PEER = 5
+};
+
 /**
  * @addtogroup peers Peers
  * @{

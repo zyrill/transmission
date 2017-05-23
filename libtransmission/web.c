@@ -36,9 +36,19 @@
 #define USE_LIBCURL_SOCKOPT
 #endif
 
+#ifndef CURL_SOCKOPT_OK
+#define CURL_SOCKOPT_OK 0
+#endif
+
+#ifndef CURL_SOCKOPT_ERROR
+#define CURL_SOCKOPT_ERROR 1 /* causes libcurl to abort and return CURLE_ABORTED_BY_CALLBACK */
+#endif
+
 enum
 {
     THREADFUNC_MAX_SLEEP_MSEC = 200,
+    /* */
+    MAX_REDIRECT_COUNT = 10L + 1L
 };
 
 #if 0
@@ -63,6 +73,7 @@ struct tr_web_task
     char* url;
     char* range;
     char* cookies;
+    uint8_t status_flag; /* corresponds with a webseed 'task_flag' */
     tr_session* session;
     tr_web_done_func done_func;
     void* done_func_user_data;
@@ -104,33 +115,169 @@ struct tr_web
 ****
 ***/
 
+static bool tr_web_task_address_is_valid(char const* addr, struct tr_web_task* task)
+{
+    if (addr == NULL)
+    {
+        task->status_flag = TR_WEB_TASK_CONNECT_FAILED;
+        dbgmsg("[address_is_valid] task %p url %s did not resolve", (void*)task, task->url);
+        return false;
+    }
+
+    struct tr_address tmp;
+    tr_address_from_string(&tmp, addr);
+
+    if (!tr_address_is_valid_for_peers(&tmp, -1))
+    {
+        task->status_flag = TR_WEB_TASK_ADDR_INVALID;
+        return false;
+    }
+
+    if (task->session->isBlocklistEnabled && tr_sessionIsAddressBlocked(task->session, &tmp))
+    {
+        task->status_flag = TR_WEB_TASK_ADDR_BLOCKED;
+        return false;
+    }
+
+    return true;
+}
+
 static size_t writeFunc(void* ptr, size_t size, size_t nmemb, void* vtask)
 {
     size_t const byteCount = size * nmemb;
     struct tr_web_task* task = vtask;
+    tr_session* session = task->session;
+    tr_torrent* tor = tr_torrentFindFromId(session, task->torrentId);
 
-    /* webseed downloads should be speed limited */
+    if (tor == NULL)
+    {
+        return byteCount + 1;
+    }
+
     if (task->torrentId != -1)
     {
-        tr_torrent* tor = tr_torrentFindFromId(task->session, task->torrentId);
+        /* users expect webseed downloads to cease on pause */
+        if (!tor->isRunning || tor->isStopping)
+        {
+            task->status_flag = TR_WEB_TASK_PAUSED;
+            dbgmsg("[writeFunc] task %p status is TR_WEB_TASK_PAUSED", (void*)task);
+            return byteCount + 1;
+        }
 
-        if (tor != NULL && tr_bandwidthClamp(&tor->bandwidth, TR_DOWN, nmemb) == 0)
+        /* address should have been checked in sockoptfunction */
+        char const* task_addr = NULL;
+        tr_webGetTaskInfo(task, TR_WEB_GET_ADDRESS, &task_addr);
+        TR_ASSERT(tr_web_task_address_is_valid(task_addr, task));
+
+        tr_webGetTaskInfo(task, TR_WEB_GET_CODE, &task->code);
+
+        /* abort if data is unusable or an empty file was sent */
+        if ((task->code != 206 && byteCount > 0) || (task->code == 206 && byteCount == 0))
+        {
+            task->status_flag = TR_WEB_TASK_NO_USABLE_DATA;
+            dbgmsg("[write_func] task %p code %ld status TR_WEB_TASK_NO_USABLE_DATA url %s", (void*)task, task->code,
+                task->url);
+            return byteCount + 1;
+        }
+
+        /* webseed downloads should be speed limited */
+        if (tr_bandwidthClamp(&tor->bandwidth, TR_DOWN, nmemb) == 0)
         {
             tr_list_append(&paused_easy_handles, task->curl_easy);
             return CURL_WRITEFUNC_PAUSE;
         }
     }
 
+    /* TODO: https://trac.transmissionbt.com/ticket/6110 --- limit download byteCount */
+
     evbuffer_add(task->response, ptr, byteCount);
-    dbgmsg("wrote %zu bytes to task %p's buffer", byteCount, (void*)task);
+
+    if (task->torrentId != -1)
+    {
+        dbgmsg("task %p wrote %zu bytes to buffer range %s code %ld url %s", (void*)task, byteCount, task->range, task->code,
+            task->url);
+    }
+
+    task->status_flag = TR_WEB_TASK_SUCCESS;
     return byteCount;
 }
 
 #ifdef USE_LIBCURL_SOCKOPT
 
+/* this function is called after socket creation, but before the connect call, */
+/* and again, before the connect call, on each redirection followed */
 static int sockoptfunction(void* vtask, curl_socket_t fd, curlsocktype purpose UNUSED)
 {
     struct tr_web_task* task = vtask;
+    tr_torrent* tor = tr_torrentFindFromId(task->session, task->torrentId);
+
+    if (tor == NULL)
+    {
+        return CURL_SOCKOPT_ERROR;
+    }
+
+    if (task->torrentId != -1)
+    {
+        long redirect_count = 0;
+        char const* task_addr = NULL;
+
+        tr_webGetTaskInfo(task, TR_WEB_GET_ADDRESS, &task_addr);
+        tr_webGetTaskInfo(task, TR_WEB_GET_CODE, &task->code);
+        tr_webGetTaskInfo(task, TR_WEB_GET_REDIRECT_COUNT, &redirect_count);
+
+        dbgmsg("[SOCKOPT_0] task %p status %d range %s redirect_count %ld code %ld ip %s url %s", (void*)task,
+            task->status_flag, task->range, redirect_count, task->code, task_addr, task->url);
+
+        if (!tor->isRunning || tor->isStopping)
+        {
+            task->status_flag = TR_WEB_TASK_PAUSED;
+            dbgmsg("[sockopt] task %p status is TR_WEB_TASK_PAUSED", (void*)task);
+            return CURL_SOCKOPT_ERROR;
+        }
+
+        /* handle the 'error' now - MAX_REDIRECT_COUNT was deliberately set one over desired level */
+        if (redirect_count == MAX_REDIRECT_COUNT)
+        {
+            task->status_flag = TR_WEB_TASK_TOO_MANY_REDIRECTS;
+            dbgmsg("[sockoptfunc] task %p status is TR_WEB_TASK_TOO_MANY_REDIRECTS redirect_count %ld code %ld ip %s url %s",
+                (void*)task, redirect_count, task->code, task_addr, task->url);
+            return CURL_SOCKOPT_ERROR;
+        }
+
+        if (!tr_web_task_address_is_valid(task_addr, task))
+        {
+            if (task->status_flag == TR_WEB_TASK_ADDR_BLOCKED)
+            {
+                tr_logAddTorInfo(tor, "Webseed IP:%s is blocklisted and has been disabled. To allow this webseed, add the IP "
+                    "to a textfile named 'whitelist' *no extension!*. Place it in your blocklist folder, and re-start "
+                    "Transmission.", task_addr);
+            }
+            else if (task->status_flag == TR_WEB_TASK_ADDR_INVALID)
+            {
+                tr_logAddTorDbg(tor, "[Webseed IP:%s (URL:%s)] Address is invalid.", task_addr, task->url);
+            }
+
+            dbgmsg("[SOCKOPT_BLCKD] task %p status %d range %s redirect_count %ld code %ld ip %s url %s", (void*)task,
+                task->status_flag, task->range, redirect_count, task->code, task_addr, task->url);
+            return CURL_SOCKOPT_ERROR;
+        }
+
+        /* block retries for secondary address (if available), and first tried was blocked */
+        if (task->status_flag > TR_WEB_TASK_INIT)
+        {
+            dbgmsg("[SOCKOPT_ALREADY_BLCKD] task %p status %d range %s redirect_count %ld code %ld ip %s url %s", (void*)task,
+                task->status_flag, task->range, redirect_count, task->code, task_addr, task->url);
+            return CURL_SOCKOPT_ERROR;
+        }
+
+        if (task->status_flag == 0)
+        {
+            task->status_flag = TR_WEB_TASK_INIT;
+            dbgmsg("[SOCKOPT_INIT] task %p status %d range %s redirect_count %ld code %ld ip %s url %s", (void*)task,
+                task->status_flag, task->range, redirect_count, task->code, task_addr, task->url);
+        }
+    }
+
     bool const isScrape = strstr(task->url, "scrape") != NULL;
     bool const isAnnounce = strstr(task->url, "announce") != NULL;
 
@@ -144,7 +291,7 @@ static int sockoptfunction(void* vtask, curl_socket_t fd, curlsocktype purpose U
     }
 
     /* return nonzero if this function encountered an error */
-    return 0;
+    return CURL_SOCKOPT_OK;
 }
 
 #endif
@@ -183,9 +330,9 @@ static CURL* createEasy(tr_session* s, struct tr_web* web, struct tr_web_task* t
     task->timeout_secs = getTimeoutFromURL(task);
 
     curl_easy_setopt(e, CURLOPT_AUTOREFERER, 1L);
-    curl_easy_setopt(e, CURLOPT_ENCODING, "gzip;q=1.0, deflate, identity");
     curl_easy_setopt(e, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(e, CURLOPT_MAXREDIRS, -1L);
+    /* don't allow infinite redirects: https://trac.transmissionbt.com/ticket/6110 */
+    curl_easy_setopt(e, CURLOPT_MAXREDIRS, MAX_REDIRECT_COUNT);
     curl_easy_setopt(e, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(e, CURLOPT_PRIVATE, task);
 
@@ -230,11 +377,15 @@ static CURL* createEasy(tr_session* s, struct tr_web* web, struct tr_web_task* t
         curl_easy_setopt(e, CURLOPT_COOKIEFILE, web->cookie_filename);
     }
 
-    if (task->range != NULL)
+    if (task->torrentId != -1)
     {
         curl_easy_setopt(e, CURLOPT_RANGE, task->range);
         /* don't bother asking the server to compress webseed fragments */
         curl_easy_setopt(e, CURLOPT_ENCODING, "identity");
+    }
+    else
+    {
+        curl_easy_setopt(e, CURLOPT_ENCODING, "gzip;q=1.0, deflate, identity");
     }
 
     return e;
@@ -247,12 +398,16 @@ static CURL* createEasy(tr_session* s, struct tr_web* web, struct tr_web_task* t
 static void task_finish_func(void* vtask)
 {
     struct tr_web_task* task = vtask;
-    dbgmsg("finished web task %p; got %ld", (void*)task, task->code);
+
+    if (task->torrentId != -1)
+    {
+        dbgmsg("finished web task %p; got %ld", (void*)task, task->code);
+    }
 
     if (task->done_func != NULL)
     {
-        (*task->done_func)(task->session, task->did_connect, task->did_timeout, task->code, evbuffer_pullup(task->response, -1),
-            evbuffer_get_length(task->response), task->done_func_user_data);
+        (*task->done_func)(task->session, task->status_flag, task->did_connect, task->did_timeout, task->code,
+            evbuffer_pullup(task->response, -1), evbuffer_get_length(task->response), task->done_func_user_data);
     }
 
     task_free(task);
@@ -424,10 +579,13 @@ static void tr_webThreadFunc(void* vsession)
             web->tasks = task->next;
             task->next = NULL;
 
-            dbgmsg("adding task to curl: [%s]", task->url);
+            if (task->torrentId != -1)
+            {
+                ++taskCount;
+                dbgmsg("adding task %p range %s task count %d cURL %s", task, task->range, taskCount, task->url);
+            }
+
             curl_multi_add_handle(multi, createEasy(session, web, task));
-            // fprintf(stderr, "adding a task.. taskCount is now %d\n", taskCount);
-            ++taskCount;
         }
 
         tr_lockUnlock(web->taskLock);
@@ -503,22 +661,60 @@ static void tr_webThreadFunc(void* vsession)
             {
                 double total_time;
                 struct tr_web_task* task;
+                long redirect_count = 0;
                 long req_bytes_sent;
                 CURL* e = msg->easy_handle;
                 curl_easy_getinfo(e, CURLINFO_PRIVATE, (void*)&task);
 
                 TR_ASSERT(e == task->curl_easy);
 
+                curl_easy_getinfo(e, CURLINFO_REDIRECT_COUNT, &redirect_count);
                 curl_easy_getinfo(e, CURLINFO_RESPONSE_CODE, &task->code);
                 curl_easy_getinfo(e, CURLINFO_REQUEST_SIZE, &req_bytes_sent);
                 curl_easy_getinfo(e, CURLINFO_TOTAL_TIME, &total_time);
                 task->did_connect = task->code > 0 || req_bytes_sent > 0;
                 task->did_timeout = task->code == 0 && total_time >= task->timeout_secs;
+
+                if (task->torrentId != -1 && (task->status_flag == 0 || task->status_flag == TR_WEB_TASK_INIT))
+                {
+                    if (total_time < task->timeout_secs && (task->code == 0 || (task->code > 206 && task->code < 304) ||
+                        task->code == 307))
+                    {
+                        task->status_flag = TR_WEB_TASK_CONNECT_FAILED;
+                        tr_logAddDebug("Connection failed to webseed %s. No route to host - do you have blocking software "
+                            "enabled?", task->url);
+                        dbgmsg("task:%p code:%ld CURLMSG_DONE - TR_WEB_TASK_CONNECT_FAILED", (void*)task, task->code);
+                    }
+                    else if (redirect_count > MAX_REDIRECT_COUNT)
+                    {
+                        task->status_flag = TR_WEB_TASK_TOO_MANY_REDIRECTS;
+                        dbgmsg("task:%p code:%ld CURLMSG_DONE - TR_WEB_TASK_TOO_MANY_REDIRECTS", (void*)task, task->code);
+                    }
+                    else if (total_time < task->timeout_secs)
+                    {
+                        task->status_flag = TR_WEB_TASK_NO_USABLE_DATA;
+                        dbgmsg("task:%p code:%ld CURLMSG_DONE - TR_WEB_TASK_NO_USABLE_DATA", (void*)task, task->code);
+                    }
+                    else if (total_time >= task->timeout_secs)
+                    {
+                        task->status_flag = TR_WEB_TASK_TIMED_OUT;
+                        dbgmsg("task:%p code:%ld CURLMSG_DONE - TR_WEB_TASK_TIMED_OUT", (void*)task, task->code);
+                    }
+                    else if (task->status_flag == TR_WEB_TASK_INIT)
+                    {
+                        task->status_flag = 0;
+                    }
+                }
+
                 curl_multi_remove_handle(multi, e);
                 tr_list_remove_data(&paused_easy_handles, e);
                 curl_easy_cleanup(e);
                 tr_runInEventThread(task->session, task_finish_func, task);
-                --taskCount;
+
+                if (task->torrentId != -1)
+                {
+                    --taskCount;
+                }
             }
         }
     }

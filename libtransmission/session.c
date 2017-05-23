@@ -2601,9 +2601,23 @@ bool tr_sessionIsAddressBlocked(tr_session const* session, tr_address const* add
 
     for (tr_list* l = session->blocklists; l != NULL; l = l->next)
     {
-        if (tr_blocklistFileHasAddress(l->data, addr))
+        if (tr_stringEndsWith(tr_blocklistFileGetFilename(l->data), "whitelist.bin"))
         {
-            return true;
+            if (tr_blocklistFileHasAddress(l->data, addr))
+            {
+                return false;
+            }
+        }
+    }
+
+    for (tr_list* l = session->blocklists; l != NULL; l = l->next)
+    {
+        if (!tr_stringEndsWith(tr_blocklistFileGetFilename(l->data), "whitelist.bin"))
+        {
+            if (tr_blocklistFileHasAddress(l->data, addr))
+            {
+                return true;
+            }
         }
     }
 

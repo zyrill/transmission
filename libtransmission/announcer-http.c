@@ -205,8 +205,8 @@ static void on_announce_done_eventthread(void* vdata)
     tr_free(data);
 }
 
-static void on_announce_done(tr_session* session, bool did_connect, bool did_timeout, long response_code, void const* msg,
-    size_t msglen, void* vdata)
+static void on_announce_done(tr_session* session, uint8_t status_flag UNUSED, bool did_connect, bool did_timeout,
+    long response_code, void const* msg, size_t msglen, void* vdata)
 {
     tr_announce_response* response;
     struct announce_data* data = vdata;
@@ -373,8 +373,8 @@ static void on_scrape_done_eventthread(void* vdata)
     tr_free(data);
 }
 
-static void on_scrape_done(tr_session* session, bool did_connect, bool did_timeout, long response_code, void const* msg,
-    size_t msglen, void* vdata)
+static void on_scrape_done(tr_session* session, uint8_t status_flag UNUSED, bool did_connect, bool did_timeout,
+    long response_code, void const* msg, size_t msglen, void* vdata)
 {
     tr_scrape_response* response;
     struct scrape_data* data = vdata;

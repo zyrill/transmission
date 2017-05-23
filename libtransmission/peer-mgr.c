@@ -62,8 +62,8 @@ enum
     MAX_CONNECTIONS_PER_SECOND = 12,
     /* */
     MAX_CONNECTIONS_PER_PULSE = (int)(MAX_CONNECTIONS_PER_SECOND * (RECONNECT_PERIOD_MSEC / 1000.0)),
-    /* number of bad pieces a peer is allowed to send before we ban them */
-    MAX_BAD_PIECES_PER_PEER = 5,
+    /* since webseeds are not integrated with max connected peers... */
+    MAX_WEBSEEDS_PER_SWARM = 16,
     /* amount of time to keep a list of request pieces lying around
        before it's considered too old and needs to be rebuilt */
     PIECE_LIST_SHELF_LIFE_SECS = 60,
@@ -243,6 +243,30 @@ struct tr_peerMgr
 /**
 *** tr_peer virtual functions
 **/
+
+static void tr_peer_add_webseed_strike(tr_peer* peer, tr_torrent* tor, tr_piece_index_t pieceIndex)
+{
+    TR_ASSERT(peer != NULL);
+    TR_ASSERT(peer->funcs != NULL);
+
+    (*peer->funcs->add_strike)(peer, tor, pieceIndex);
+}
+
+static bool tr_peer_needs_poking(tr_peer* peer)
+{
+    TR_ASSERT(peer != NULL);
+    TR_ASSERT(peer->funcs != NULL);
+
+    return (*peer->funcs->needs_poking)(peer);
+}
+
+static char* tr_peer_get_webseed_base_url(tr_peer* peer)
+{
+    TR_ASSERT(peer != NULL);
+    TR_ASSERT(peer->funcs != NULL);
+
+    return (*peer->funcs->base_url)(peer);
+}
 
 static bool tr_peerIsTransferringPieces(tr_peer const* peer, uint64_t now, tr_direction direction, unsigned int* Bps)
 {
@@ -487,9 +511,10 @@ static void rebuildWebseedArray(tr_swarm* s, tr_torrent* tor)
     tr_ptrArrayDestruct(&s->webseeds, (PtrArrayForeachFunc)tr_peerFree);
     s->webseeds = TR_PTR_ARRAY_INIT;
     s->stats.activeWebseedCount = 0;
+    tor->next_webseed_i = 0;
 
     /* repopulate it */
-    for (unsigned int i = 0; i < inf->webseedCount; ++i)
+    for (unsigned int i = 0; i < MIN(inf->webseedCount, MAX_WEBSEEDS_PER_SWARM); ++i)
     {
         tr_webseed* w = tr_webseedNew(tor, inf->webseeds[i], peerCallbackFunc, s);
         tr_ptrArrayAppend(&s->webseeds, w);
@@ -1346,6 +1371,7 @@ void tr_peerMgrGetNextRequests(tr_torrent* tor, tr_peer* peer, int numwant, tr_b
 
     tr_swarm* s;
     tr_bitfield const* const have = &peer->have;
+    tr_bitfield const* const blame = &peer->blame;
 
     /* walk through the pieces and find blocks that should be requested */
     s = tor->swarm;
@@ -1373,6 +1399,14 @@ void tr_peerMgrGetNextRequests(tr_torrent* tor, tr_peer* peer, int numwant, tr_b
     for (int i = 0; i < s->pieceCount && got < numwant; ++i, ++checkedPieceCount)
     {
         struct weighted_piece* p = pieces + i;
+
+        /* try to avoid requesting the same piece from the same questionable peer multiple times */
+        if (tr_bitfieldHas(blame, p->index) && i < s->pieceCount - 1 && peer->strikes > 0)
+        {
+            fprintf(stderr, "[tr_peerMgrGetNextRequests] peer %p piece %d strike_count %d is in peer's blame bitfield: "
+                "try a different piece\n", peer, (int)p->index, peer->strikes);
+            continue;
+        }
 
         /* if the peer has this piece that we want... */
         if (tr_bitfieldHas(have, p->index))
@@ -2288,9 +2322,10 @@ tr_pex* tr_peerMgrArrayToPex(void const* array, size_t arrayLen, size_t* pexCoun
 void tr_peerMgrGotBadPiece(tr_torrent* tor, tr_piece_index_t pieceIndex)
 {
     tr_swarm* s = tor->swarm;
+    bool from_peers = false;
     uint32_t const byteCount = tr_torPieceCountBytes(tor, pieceIndex);
 
-    for (int i = 0, n = tr_ptrArraySize(&s->peers); i != n; ++i)
+    for (int i = 0, n = tr_ptrArraySize(&s->peers); i < n; ++i)
     {
         tr_peer* peer = tr_ptrArrayNth(&s->peers, i);
 
@@ -2299,10 +2334,22 @@ void tr_peerMgrGotBadPiece(tr_torrent* tor, tr_piece_index_t pieceIndex)
             tordbg(s, "peer %s contributed to corrupt piece (%d); now has %d strikes", tr_atomAddrStr(peer->atom), pieceIndex,
                 (int)peer->strikes + 1);
             addStrike(s, peer);
+            from_peers = true;
+        }
+
+        /* webseed downloads don't belong in announce totals */
+        if (from_peers)
+        {
+            tr_announcerAddBytes(tor, TR_ANN_CORRUPT, byteCount);
         }
     }
 
-    tr_announcerAddBytes(tor, TR_ANN_CORRUPT, byteCount);
+    for (int i = 0, n = tr_ptrArraySize(&s->webseeds); i < n; ++i)
+    {
+        tr_webseed* w = tr_ptrArrayNth(&s->webseeds, i);
+        /* w->parent's blame bitfield will be checked first... */
+        tr_peer_add_webseed_strike((tr_peer*)w, tor, pieceIndex);
+    }
 }
 
 int tr_pexCompare(void const* va, void const* vb)
@@ -2498,14 +2545,71 @@ static void ensureMgrTimersExist(struct tr_peerMgr* m)
     }
 }
 
+/* @ tr_peerMgrStartTorrent: refresh the webseed array, if more webseeds are available and needed */
+static void poke_webseed_array(tr_torrent* tor)
+{
+    tr_swarm* s = tor->swarm;
+
+    int n = tr_ptrArraySize(&s->webseeds);
+    int blocked_webseeds = 0;
+    tr_info const* inf = &tor->info;
+
+    for (int i = 0; i < n; ++i)
+    {
+        tr_webseed* w = tr_ptrArrayNth(&s->webseeds, i);
+
+        if (tr_peer_needs_poking((tr_peer*)w))
+        {
+            ++blocked_webseeds;
+        }
+    }
+
+    if (blocked_webseeds > 0)
+    {
+        for (int i = 0; i < n && blocked_webseeds > 0 && tor->next_webseed_i < inf->webseedCount; ++i)
+        {
+            tr_webseed* w = tr_ptrArrayNth(&s->webseeds, i);
+
+            if (tr_peer_needs_poking((tr_peer*)w))
+            {
+                tr_peerFree((tr_peer*)w);
+                tr_ptrArrayRemove(&s->webseeds, i);
+
+                if (i < n - 1)
+                {
+                    --i;
+                }
+
+                tr_webseed* w = tr_webseedNew(tor, inf->webseeds[tor->next_webseed_i++], peerCallbackFunc, s);
+                tr_ptrArrayAppend(&s->webseeds, w);
+                --blocked_webseeds;
+            }
+        }
+    }
+}
+
 void tr_peerMgrStartTorrent(tr_torrent* tor)
 {
     TR_ASSERT(tr_isTorrent(tor));
     TR_ASSERT(tr_torrentIsLocked(tor));
 
+    tr_info const* inf = &tor->info;
     tr_swarm* s = tor->swarm;
 
     ensureMgrTimersExist(s->manager);
+
+    if (tr_torrentHasMetadata(tor) && inf->webseedCount > MAX_WEBSEEDS_PER_SWARM && tor->next_webseed_i < inf->webseedCount)
+    {
+        /* no poking needed on the first run of the session */
+        if (tor->next_webseed_i == 0)
+        {
+            tor->next_webseed_i = tr_ptrArraySize(&s->webseeds);
+        }
+        else
+        {
+            poke_webseed_array(tor);
+        }
+    }
 
     s->isRunning = true;
     s->maxPeers = tor->maxConnectedPeers;
@@ -2772,25 +2876,46 @@ double* tr_peerMgrWebSpeeds_KBps(tr_torrent const* tor)
 
     uint64_t const now = tr_time_msec();
 
+    tr_info const* inf = &tor->info;
+
     tr_swarm* s = tor->swarm;
     TR_ASSERT(s->manager != NULL);
 
     unsigned int n = tr_ptrArraySize(&s->webseeds);
-    TR_ASSERT(n == tor->info.webseedCount);
+    TR_ASSERT(n == inf->webseedCount);
 
-    double* ret = tr_new0(double, n);
+    double* ret = tr_new0(double, inf->webseedCount);
+    unsigned int updated = 0;
 
-    for (unsigned int i = 0; i < n; ++i)
+    for (unsigned int i = 0; i < inf->webseedCount; ++i)
     {
-        unsigned int Bps = 0;
+        ret[i] = -1.0;
 
-        if (tr_peerIsTransferringPieces(tr_ptrArrayNth(&s->webseeds, i), now, TR_DOWN, &Bps))
+        if (updated < n)
         {
-            ret[i] = Bps / (double)tr_speed_K;
-        }
-        else
-        {
-            ret[i] = -1.0;
+            for (unsigned int j = 0; j < n; ++j)
+            {
+                tr_webseed* w = tr_ptrArrayNth(&s->webseeds, j);
+                char* ws_url = tr_peer_get_webseed_base_url((tr_peer*)w);
+
+                if (tr_strcmp0(inf->webseeds[i], ws_url) == 0)
+                {
+                    const uint64_t now = tr_time_msec();
+                    unsigned int Bps = 0;
+
+                    if (tr_peerIsTransferringPieces(tr_ptrArrayNth(&s->webseeds, j), now, TR_DOWN, &Bps))
+                    {
+                        ret[i] = Bps / (double)tr_speed_K;
+                        ++updated;
+                        tr_free(ws_url);
+                        break;
+                    }
+                    else
+                    {
+                        tr_free(ws_url);
+                    }
+                }
+            }
         }
     }
 

@@ -79,11 +79,17 @@ typedef void (* tr_peer_callback)(struct tr_peer* peer, tr_peer_event const* eve
 typedef void (* tr_peer_destruct_func)(struct tr_peer* peer);
 typedef bool (* tr_peer_is_transferring_pieces_func)(struct tr_peer const* peer, uint64_t now, tr_direction direction,
     unsigned int* Bps);
+typedef void (* tr_peer_add_webseed_strike_func)(struct tr_peer* peer, tr_torrent* tor, tr_piece_index_t pieceIndex);
+typedef bool (* tr_peer_needs_poking_func)(struct tr_peer* peer);
+typedef char* (* tr_peer_get_webseed_base_url_func)(struct tr_peer* peer);
 
 struct tr_peer_virtual_funcs
 {
     tr_peer_destruct_func destruct;
     tr_peer_is_transferring_pieces_func is_transferring_pieces;
+    tr_peer_add_webseed_strike_func add_strike;
+    tr_peer_needs_poking_func needs_poking;
+    tr_peer_get_webseed_base_url_func base_url;
 };
 
 /**

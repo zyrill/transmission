@@ -16,12 +16,21 @@
 #include "cache.h"
 #include "inout.h" /* tr_ioFindFileLocation() */
 #include "list.h"
+#include "log.h"
 #include "peer-mgr.h"
 #include "torrent.h"
 #include "trevent.h" /* tr_runInEventThread() */
 #include "utils.h"
 #include "web.h"
 #include "webseed.h"
+
+#if 0
+#define dbgmsg(fmt, ...) fprintf(stderr, fmt "\n", __VA_ARGS__)
+#elif 0
+#define dbgmsg(...) tr_logAddDeepNamed("web", __VA_ARGS__)
+#else
+#define dbgmsg(...) ((void)0)
+#endif
 
 struct tr_webseed_task
 {
@@ -57,6 +66,7 @@ struct tr_webseed
     int idle_connections;
     int active_transfers;
     char** file_urls;
+    uint8_t task_flag;
 };
 
 enum
@@ -67,7 +77,7 @@ enum
     /* */
     MAX_CONSECUTIVE_FAILURES = 5,
     /* */
-    MAX_WEBSEED_CONNECTIONS = 4
+    MAX_CONNECTIONS_PER_WEBSEED = 4
 };
 
 /***
@@ -155,20 +165,54 @@ static void write_block_func(void* vdata)
     {
         uint32_t const block_size = tor->blockSize;
         uint32_t len = evbuffer_get_length(buf);
+        unsigned int blocks_written = 0;
         uint32_t const offset_end = data->block_offset + len;
         tr_cache* cache = data->session->cache;
         tr_piece_index_t const piece = data->piece_index;
 
         if (!tr_torrentPieceIsComplete(tor, piece))
         {
-            while (len > 0)
+            while (data->count > 0)
             {
                 uint32_t const bytes_this_pass = MIN(len, block_size);
-                tr_cacheWriteBlock(cache, tor, piece, offset_end - len, bytes_this_pass, buf);
-                len -= bytes_this_pass;
+
+                if (!tr_torrentBlockIsComplete(tor, data->block_index))
+                {
+                    tr_cacheWriteBlock(cache, tor, piece, offset_end - len, bytes_this_pass, buf);
+                    len -= bytes_this_pass;
+                    ++blocks_written;
+
+                    dbgmsg("[write_block_func_1] ws %p piece %d buf %d this pass %d written %d count %d block_index %d url %s",
+                        w, (int)piece, (int)len, (int)bytes_this_pass, blocks_written, (int)data->count, (int)data->block_index,
+                        w->base_url);
+
+                    fire_client_got_blocks(tor, w, data->block_index, 1);
+
+                    if (data->count-- > 1)
+                    {
+                        ++data->block_index;
+                    }
+                }
+                else if (data->count-- > 0)
+                {
+                    evbuffer_drain(buf, len);
+                    len -= bytes_this_pass;
+
+                    if (data->count > 0)
+                    {
+                        ++data->block_index;
+                    }
+
+                    dbgmsg("[write_block_func_2] ws %p piece %d buf %d this pass %d written %d count %d block_index %d url %s",
+                        w, (int)piece, (int)len, (int)bytes_this_pass, blocks_written, (int)data->count, (int)data->block_index,
+                        w->base_url);
+                }
             }
 
-            fire_client_got_blocks(tor, w, data->block_index, data->count);
+            if (blocks_written > 0)
+            {
+                tr_bitfieldAdd(&w->parent.blame, piece);
+            }
         }
     }
 
@@ -219,6 +263,15 @@ static void connection_succeeded(void* vdata)
 ****
 ***/
 
+static bool piece_offset_is_valid(tr_torrent* tor, struct tr_webseed_task* t)
+{
+    bool is_valid;
+
+    is_valid = evbuffer_get_length(t->content) <= t->length - (t->blocks_done * tor->blockSize);
+
+    return is_valid;
+}
+
 static void on_content_changed(struct evbuffer* buf, struct evbuffer_cb_info const* info, void* vtask)
 {
     size_t const n_added = info->n_added;
@@ -227,10 +280,22 @@ static void on_content_changed(struct evbuffer* buf, struct evbuffer_cb_info con
 
     tr_sessionLock(session);
 
-    if (!task->dead && n_added > 0)
+    struct tr_webseed* w = task->webseed;
+    tr_torrent* tor = tr_torrentFindFromId(w->session, w->torrent_id);
+
+    dbgmsg("[on_content_changed_ALL] ws %p task %p piece %d strikes %d task_flag %d running %d", w, task->web_task,
+        (int)task->piece_index, w->parent.strikes, w->task_flag, tr_list_size(w->tasks));
+
+    /* stop corrupt data transfer: https://trac.transmissionbt.com/ticket/5969 */
+    if (!piece_offset_is_valid(tor, task))
+    {
+        w->task_flag = TR_WEB_TASK_CORRUPT_DATA;
+        tr_logAddTorDbg(tor, "Webseed:%s is sending corrupt data and has been disabled.", w->base_url);
+    }
+
+    if (tor != NULL && !task->dead && n_added > 0 && w->task_flag != TR_WEB_TASK_CORRUPT_DATA)
     {
         uint32_t len;
-        struct tr_webseed* w = task->webseed;
 
         tr_bandwidthUsed(&w->bandwidth, TR_DOWN, n_added, true, tr_time_msec());
         fire_client_got_piece_data(w, n_added);
@@ -285,6 +350,21 @@ static void on_content_changed(struct evbuffer* buf, struct evbuffer_cb_info con
             tr_runInEventThread(w->session, write_block_func, data);
             task->blocks_done += completed;
         }
+
+        w->task_flag = TR_WEB_TASK_SUCCESS;
+
+        dbgmsg("[on_content_changed_206] ws %p task %p piece %d task_flag %d length %ld done %d buf %d this pass %d code %ld "
+            "valid %d", w, task->web_task, (int)task->piece_index, w->task_flag, (long)task->length,
+            (int)(task->blocks_done * task->block_size), (int)len, (int)((len / task->block_size) * task->block_size),
+            task->response_code, (int)piece_offset_is_valid(tor, task));
+    }
+
+    if (w->task_flag == TR_WEB_TASK_CORRUPT_DATA)
+    {
+        dbgmsg("[on_content_changed_CD] ws %p task %p piece %d task_flag %d length %ld done %ld buf %d code %ld valid %d",
+            w, task->web_task, (int)task->piece_index, w->task_flag, (long)task->length,
+            (long)(task->blocks_done * tor->blockSize), (int)evbuffer_get_length(buf), task->response_code,
+            (int)piece_offset_is_valid(tor, task));
     }
 
     tr_sessionUnlock(session);
@@ -298,7 +378,22 @@ static void on_idle(tr_webseed* w)
     int running_tasks = tr_list_size(w->tasks);
     tr_torrent* tor = tr_torrentFindFromId(w->session, w->torrent_id);
 
-    if (w->consecutive_failures >= MAX_CONSECUTIVE_FAILURES)
+    if (tor == NULL)
+    {
+        return;
+    }
+
+    if (w->task_flag == TR_WEB_TASK_INIT && (!tor->isRunning || tor->isStopping))
+    {
+        w->task_flag = 0;
+    }
+
+    if (w->task_flag == TR_WEB_TASK_INIT || w->task_flag == TR_WEB_TASK_ADDR_INVALID ||
+        w->task_flag == TR_WEB_TASK_ADDR_BLOCKED || w->task_flag == TR_WEB_TASK_CORRUPT_DATA)
+    {
+        want = 0;
+    }
+    else if (w->consecutive_failures >= MAX_CONSECUTIVE_FAILURES)
     {
         want = w->idle_connections;
 
@@ -312,11 +407,17 @@ static void on_idle(tr_webseed* w)
     }
     else
     {
-        want = MAX_WEBSEED_CONNECTIONS - running_tasks;
+        want = MAX_CONNECTIONS_PER_WEBSEED - running_tasks;
         w->retry_challenge = running_tasks + w->idle_connections + 1;
     }
 
-    if (tor != NULL && tor->isRunning && !tr_torrentIsSeed(tor) && want > 0)
+    /* check address and wait for 206 data, then go to MAX_CONNECTIONS_PER_WEBSEED */
+    if (want > 1 && w->task_flag == 0)
+    {
+        want = 1;
+    }
+
+    if (tor->isRunning && !tor->isStopping && !tr_torrentIsSeed(tor) && want > 0)
     {
         int got = 0;
         tr_block_index_t* blocks = NULL;
@@ -351,19 +452,20 @@ static void on_idle(tr_webseed* w)
             evbuffer_add_cb(task->content, on_content_changed, task);
             tr_list_append(&w->tasks, task);
             task_request_next_chunk(task);
+
+            w->task_flag = TR_WEB_TASK_INIT;
         }
 
         tr_free(blocks);
     }
 }
 
-static void web_response_func(tr_session* session, bool did_connect UNUSED, bool did_timeout UNUSED, long response_code,
-    void const* response UNUSED, size_t response_byte_count UNUSED, void* vtask)
+static void web_response_func(tr_session* session, uint8_t status_flag, bool did_connect UNUSED, bool did_timeout UNUSED,
+    long response_code, void const* response UNUSED, size_t response_byte_count UNUSED, void* vtask)
 {
     tr_webseed* w;
     tr_torrent* tor;
     struct tr_webseed_task* t = vtask;
-    int const success = (response_code == 206);
 
     if (t->dead)
     {
@@ -377,13 +479,26 @@ static void web_response_func(tr_session* session, bool did_connect UNUSED, bool
 
     if (tor != NULL)
     {
+        int const success = response_code == 206;
+        uint8_t const flag = status_flag;
+
+        if (flag != TR_WEB_TASK_PAUSED && w->task_flag != TR_WEB_TASK_CORRUPT_DATA)
+        {
+            w->task_flag = flag;
+        }
+
+        dbgmsg("[web_response_ALL] ws %p task %p piece %d strikes %d status_flag %d task_flag %d running %d t->length %ld "
+            "buf %ld bytes done %ld code %ld t->response_code %ld", w, t->web_task, (int)t->piece_index, w->parent.strikes,
+            flag, w->task_flag, tr_list_size(w->tasks), (long)t->length, (long)evbuffer_get_length(t->content),
+            (long)(t->blocks_done * tor->blockSize), response_code, t->response_code);
+
         /* active_transfers was only increased if the connection was successful */
         if (t->response_code == 206)
         {
             --w->active_transfers;
         }
 
-        if (!success)
+        if (!success || !piece_offset_is_valid(tor, t) || flag == TR_WEB_TASK_PAUSED || w->task_flag < TR_WEB_TASK_SUCCESS)
         {
             tr_block_index_t const blocks_remain = (t->length + tor->blockSize - 1) / tor->blockSize - t->blocks_done;
 
@@ -396,15 +511,22 @@ static void web_response_func(tr_session* session, bool did_connect UNUSED, bool
             {
                 ++w->idle_connections;
             }
-            else if (++w->consecutive_failures >= MAX_CONSECUTIVE_FAILURES && w->retry_tickcount == 0)
+            /* to allow for repeated button twiddling, don't increment w->consecutive_failures unless... */
+            else if (tor->isRunning && !tor->isStopping)
             {
-                /* now wait a while until retrying to establish a connection */
-                ++w->retry_tickcount;
+                if (++w->consecutive_failures >= MAX_CONSECUTIVE_FAILURES && w->retry_tickcount == 0)
+                {
+                    /* now wait a while until retrying to establish a connection */
+                    ++w->retry_tickcount;
+                }
             }
 
             tr_list_remove_data(&w->tasks, t);
             evbuffer_free(t->content);
             tr_free(t);
+
+            dbgmsg("[web_response_FAIL] ws %p strikes %d status_flag %d task_flag %d running %d code %ld", w, w->parent.strikes,
+                flag, w->task_flag, tr_list_size (w->tasks), response_code);
         }
         else
         {
@@ -420,12 +542,19 @@ static void web_response_func(tr_session* session, bool did_connect UNUSED, bool
             }
             else
             {
-                if (buf_len != 0 && !tr_torrentPieceIsComplete(tor, t->piece_index))
+                if (buf_len != 0 && !tr_torrentPieceIsComplete(tor, t->piece_index) &&
+                    !tr_torrentBlockIsComplete(tor, t->block + t->blocks_done))
                 {
+                    TR_ASSERT(buf_len == tor->lastBlockSize);
+
                     /* on_content_changed() will not write a block if it is smaller than
                        the torrent's block size, i.e. the torrent's very last block */
                     tr_cacheWriteBlock(session->cache, tor, t->piece_index, t->piece_offset + bytes_done, buf_len, t->content);
 
+                    dbgmsg("[web_response_LAST_BLOCK_WRITE] ws %p task %p piece %d block %d size %ld", w, t->web_task,
+                        (int)t->piece_index, (int)(t->block + t->blocks_done), (long)buf_len);
+
+                    tr_bitfieldAdd(&w->parent.blame, t->piece_index);
                     fire_client_got_blocks(tor, t->webseed, t->block + t->blocks_done, 1);
                 }
 
@@ -571,10 +700,49 @@ static void webseed_destruct(tr_peer* peer)
     tr_peerDestruct(&w->parent);
 }
 
+static void webseed_add_strike(tr_peer* peer, tr_torrent* tor, tr_piece_index_t pieceIndex)
+{
+    tr_webseed* w = (tr_webseed*)peer;
+
+    if (tr_bitfieldHas(&w->parent.blame, pieceIndex))
+    {
+        ++w->parent.strikes;
+
+        if (w->parent.strikes == MAX_BAD_PIECES_PER_PEER)
+        {
+            w->task_flag = TR_WEB_TASK_CORRUPT_DATA;
+            tr_logAddTorDbg(tor, "Webseed:%s has sent %d corrupt pieces and has been disabled.", w->base_url,
+                MAX_BAD_PIECES_PER_PEER);
+        }
+
+        dbgmsg("[webseed_add_strike] ws %p piece %d strike_count %d task_flag %d running %d url %s", w, (int)pieceIndex,
+            w->parent.strikes, w->task_flag, tr_list_size(w->tasks), w->base_url);
+    }
+}
+
+static char* webseed_get_base_url(tr_peer* peer)
+{
+  tr_webseed* w = (tr_webseed*)peer;
+  char* ret = tr_strndup(w->base_url, w->base_url_len);
+
+  return ret;
+}
+
+static bool webseed_needs_poking(tr_peer* peer)
+{
+    tr_webseed* w = (tr_webseed*)peer;
+    uint8_t ret = w->task_flag;
+
+    return ret > TR_WEB_TASK_PAUSED && ret < TR_WEB_TASK_SUCCESS;
+}
+
 static struct tr_peer_virtual_funcs const my_funcs =
 {
     .destruct = webseed_destruct,
-    .is_transferring_pieces = webseed_is_transferring_pieces
+    .is_transferring_pieces = webseed_is_transferring_pieces,
+    .add_strike = webseed_add_strike,
+    .base_url = webseed_get_base_url,
+    .needs_poking = webseed_needs_poking
 };
 
 /***

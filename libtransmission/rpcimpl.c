@@ -1437,8 +1437,8 @@ static char const* torrentRenamePath(tr_session* session, tr_variant* args_in, t
 ****
 ***/
 
-static void portTested(tr_session* session UNUSED, bool did_connect UNUSED, bool did_timeout UNUSED, long response_code,
-    void const* response, size_t response_byte_count, void* user_data)
+static void portTested(tr_session* session UNUSED, uint8_t status_flag UNUSED, bool did_connect UNUSED, bool did_timeout UNUSED,
+    long response_code, void const* response, size_t response_byte_count, void* user_data)
 {
     char result[1024];
     struct tr_rpc_idle_data* data = user_data;
@@ -1472,8 +1472,8 @@ static char const* portTest(tr_session* session, tr_variant* args_in UNUSED, tr_
 ****
 ***/
 
-static void gotNewBlocklist(tr_session* session, bool did_connect UNUSED, bool did_timeout UNUSED, long response_code,
-    void const* response, size_t response_byte_count, void* user_data)
+static void gotNewBlocklist(tr_session* session, uint8_t status_flag UNUSED, bool did_connect UNUSED, bool did_timeout UNUSED,
+    long response_code, void const* response, size_t response_byte_count, void* user_data)
 {
     char result[1024];
     struct tr_rpc_idle_data* data = user_data;
@@ -1644,8 +1644,8 @@ struct add_torrent_idle_data
     tr_ctor* ctor;
 };
 
-static void gotMetadataFromURL(tr_session* session UNUSED, bool did_connect UNUSED, bool did_timeout UNUSED, long response_code,
-    void const* response, size_t response_byte_count, void* user_data)
+static void gotMetadataFromURL(tr_session* session UNUSED, uint8_t status_flag UNUSED, bool did_connect UNUSED,
+    bool did_timeout UNUSED, long response_code, void const* response, size_t response_byte_count, void* user_data)
 {
     struct add_torrent_idle_data* data = user_data;
 

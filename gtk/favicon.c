@@ -73,7 +73,7 @@ static GdkPixbuf* favicon_load_from_cache(char const* host)
     return pixbuf;
 }
 
-static void favicon_web_done_cb(tr_session*, bool, bool, long, void const*, size_t, void*);
+static void favicon_web_done_cb(tr_session*, uint8_t, bool, bool, long, void const*, size_t, void*);
 
 static gboolean favicon_web_done_idle_cb(gpointer vfav)
 {
@@ -118,8 +118,8 @@ static gboolean favicon_web_done_idle_cb(gpointer vfav)
     return G_SOURCE_REMOVE;
 }
 
-static void favicon_web_done_cb(tr_session* session UNUSED, bool did_connect UNUSED, bool did_timeout UNUSED, long code UNUSED,
-    void const* data, size_t len, void* vfav)
+static void favicon_web_done_cb(tr_session* session UNUSED, uint8_t status_flag UNUSED, bool did_connect UNUSED,
+    bool did_timeout UNUSED, long code UNUSED, void const* data, size_t len, void* vfav)
 {
     struct favicon_data* fav = vfav;
     fav->contents = g_memdup(data, len);
