@@ -450,6 +450,37 @@ int tr_cacheFlushFile(tr_cache* cache, tr_torrent* torrent, tr_file_index_t i)
     return err;
 }
 
+int tr_cacheFlushPiece(tr_cache* cache, tr_torrent* torrent, tr_piece_index_t i)
+{
+    int pos;
+    int err = 0;
+    tr_block_index_t first;
+    tr_block_index_t last;
+    tr_torGetPieceBlockRange(torrent, i, &first, &last);
+    pos = findBlockPos(cache, torrent, first);
+    dbgmsg("flushing piece %d from cache to disk: blocks [%zu...%zu]", (int)i, (size_t)first, (size_t)last);
+
+    /* flush out all the blocks in that piece */
+    while (err == 0 && pos < tr_ptrArraySize(&cache->blocks))
+    {
+        struct cache_block const* b = tr_ptrArrayNth(&cache->blocks, pos);
+
+        if (b->tor != torrent)
+        {
+            break;
+        }
+
+        if (b->block < first || b->block > last)
+        {
+            break;
+        }
+
+        err = flushContiguous(cache, pos, getBlockRun(cache, pos, NULL));
+    }
+
+    return err;
+}
+
 int tr_cacheFlushTorrent(tr_cache* cache, tr_torrent* torrent)
 {
     int err = 0;

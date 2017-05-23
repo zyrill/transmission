@@ -289,9 +289,11 @@ static char const* getHomeDir(void)
 #if defined(__APPLE__) || defined(_WIN32)
 #define RESUME_SUBDIR "Resume"
 #define TORRENT_SUBDIR "Torrents"
+#define PIECE_SUBDIR "Pieces"
 #else
 #define RESUME_SUBDIR "resume"
 #define TORRENT_SUBDIR "torrents"
+#define PIECE_SUBDIR "pieces"
 #endif
 
 void tr_setConfigDir(tr_session* session, char const* configDir)
@@ -457,6 +459,11 @@ char const* tr_getDefaultDownloadDir(void)
     }
 
     return user_dir;
+}
+
+char const* tr_getDefaultPieceSubDir(void)
+{
+    return PIECE_SUBDIR;
 }
 
 /***

@@ -65,6 +65,21 @@ static bool verifyTorrent(tr_torrent* tor, bool* stopFlag)
             hadPiece = tr_torrentPieceIsComplete(tor, pieceIndex);
         }
 
+        /* check for temporary piece files */
+        if (file->usept && (piecePos == 0 || filePos == 0) && fd == TR_BAD_SYS_FILE &&
+            (pieceIndex == file->firstPiece || pieceIndex == file->lastPiece))
+        {
+            char* filename = tr_torrentFindPieceTemp(tor, pieceIndex);
+            fd = filename == NULL ? TR_BAD_SYS_FILE : tr_sys_file_open(filename, TR_SYS_FILE_READ | TR_SYS_FILE_SEQUENTIAL, 0,
+                NULL);
+            tr_free(filename);
+
+            if (filePos == 0 && fileIndex != prevFileIndex)
+            {
+                prevFileIndex = fileIndex;
+            }
+        }
+
         /* if we're starting a new file... */
         if (filePos == 0 && fd == TR_BAD_SYS_FILE && fileIndex != prevFileIndex)
         {
@@ -84,13 +99,14 @@ static bool verifyTorrent(tr_torrent* tor, bool* stopFlag)
         /* read a bit */
         if (fd != TR_BAD_SYS_FILE)
         {
+            uint64_t const readPos = file->usept ? piecePos : filePos;
             uint64_t numRead;
 
-            if (tr_sys_file_read_at(fd, buffer, bytesThisPass, filePos, &numRead, NULL) && numRead > 0)
+            if (tr_sys_file_read_at(fd, buffer, bytesThisPass, readPos, &numRead, NULL) && numRead > 0)
             {
                 bytesThisPass = numRead;
                 tr_sha1_update(sha, buffer, bytesThisPass);
-                tr_sys_file_advise(fd, filePos, bytesThisPass, TR_SYS_FILE_ADVICE_DONT_NEED, NULL);
+                tr_sys_file_advise(fd, readPos, bytesThisPass, TR_SYS_FILE_ADVICE_DONT_NEED, NULL);
             }
         }
 

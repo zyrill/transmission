@@ -48,4 +48,6 @@ int tr_cacheFlushDone(tr_cache* cache);
 
 int tr_cacheFlushTorrent(tr_cache* cache, tr_torrent* torrent);
 
+int tr_cacheFlushPiece(tr_cache* cache, tr_torrent* torrent, tr_piece_index_t piece);
+
 int tr_cacheFlushFile(tr_cache* cache, tr_torrent* torrent, tr_file_index_t file);

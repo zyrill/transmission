@@ -248,6 +248,23 @@ char const* tr_sessionGetDownloadDir(tr_session const* session);
 int64_t tr_sessionGetDirFreeSpace(tr_session* session, char const* dir);
 
 /**
+* @brief Get the full path to where temporary piece files are stored.
+ */
+char const* tr_sessionGetPieceTempDir(tr_session const* session);
+
+/**
+ * @brief Set the full path to where temporary piece files are stored.
+ * @param path If empty or NULL a default path consisting of the
+ *             config directory and a "pieces" sub-directory is set.
+ * @note Changing this setting will only affect new torrents. Existing
+ *       torrents will continue to use the same directory as was set
+ *       when they were created.
+ * @see tr_sessionGetConfigDir
+ * @see tr_getDefaultPieceSubDir
+ */
+void tr_sessionSetPieceTempDir(tr_session* session, char const* path);
+
+/**
  * @brief Set the torrent's bandwidth priority.
  */
 void tr_ctorSetBandwidthPriority(tr_ctor* ctor, tr_priority_t priority);
@@ -1573,6 +1590,7 @@ typedef struct tr_file
     int8_t priority; /* TR_PRI_HIGH, _NORMAL, or _LOW */
     int8_t dnd; /* "do not download" flag */
     int8_t is_renamed; /* true if we're using a different path from the one in the metainfo; ie, if the user has renamed it */
+    int8_t usept; /* nonzero if using temporary piece files */
     tr_piece_index_t firstPiece; /* We need pieces [firstPiece... */
     tr_piece_index_t lastPiece; /* ...lastPiece] to dl this file */
     uint64_t offset; /* file begins at the torrent's nth byte */

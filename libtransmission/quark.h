@@ -241,6 +241,7 @@ enum
     TR_KEY_pex_enabled,
     TR_KEY_piece,
     TR_KEY_piece_length,
+    TR_KEY_piece_temp_dir,
     TR_KEY_pieceCount,
     TR_KEY_pieceSize,
     TR_KEY_pieces,

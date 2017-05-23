@@ -337,6 +337,7 @@ void tr_sessionGetDefaultSettings(tr_variant* d)
     tr_variantDictAddBool(d, TR_KEY_utp_enabled, true);
     tr_variantDictAddBool(d, TR_KEY_lpd_enabled, false);
     tr_variantDictAddStr(d, TR_KEY_download_dir, tr_getDefaultDownloadDir());
+    tr_variantDictAddStr(d, TR_KEY_piece_temp_dir, "");
     tr_variantDictAddInt(d, TR_KEY_speed_limit_down, 100);
     tr_variantDictAddBool(d, TR_KEY_speed_limit_down_enabled, false);
     tr_variantDictAddInt(d, TR_KEY_encryption, TR_DEFAULT_ENCRYPTION);
@@ -407,6 +408,7 @@ void tr_sessionGetSettings(tr_session* s, tr_variant* d)
     tr_variantDictAddBool(d, TR_KEY_utp_enabled, s->isUTPEnabled);
     tr_variantDictAddBool(d, TR_KEY_lpd_enabled, s->isLPDEnabled);
     tr_variantDictAddStr(d, TR_KEY_download_dir, tr_sessionGetDownloadDir(s));
+    tr_variantDictAddStr(d, TR_KEY_piece_temp_dir, tr_sessionGetPieceTempDir(s));
     tr_variantDictAddInt(d, TR_KEY_download_queue_size, tr_sessionGetQueueSize(s, TR_DOWN));
     tr_variantDictAddBool(d, TR_KEY_download_queue_enabled, tr_sessionGetQueueEnabled(s, TR_DOWN));
     tr_variantDictAddInt(d, TR_KEY_speed_limit_down, tr_sessionGetSpeedLimit_KBps(s, TR_DOWN));
@@ -939,6 +941,11 @@ static void sessionSetImpl(void* vdata)
         tr_sessionSetDownloadDir(session, str);
     }
 
+    if (tr_variantDictFindStr(settings, TR_KEY_piece_temp_dir, &str, NULL))
+    {
+        tr_sessionSetPieceTempDir(session, str);
+    }
+
     if (tr_variantDictFindStr(settings, TR_KEY_incomplete_dir, &str, NULL))
     {
         tr_sessionSetIncompleteDir(session, str);
@@ -1194,6 +1201,34 @@ int64_t tr_sessionGetDirFreeSpace(tr_session* session, char const* dir)
     }
 
     return free_space;
+}
+
+/***
+****
+***/
+
+char const* tr_sessionGetPieceTempDir(tr_session const* session)
+{
+    assert(tr_isSession(session));
+    return session->pieceDir;
+}
+
+void tr_sessionSetPieceTempDir(tr_session* session, char const* path)
+{
+    assert(tr_isSession(session));
+    tr_sessionLock(session);
+    tr_free(session->pieceDir);
+
+    if (path != NULL && *path != '\0')
+    {
+        session->pieceDir = tr_strdup(path);
+    }
+    else
+    {
+        session->pieceDir = tr_buildPath(tr_sessionGetConfigDir(session), tr_getDefaultPieceSubDir(), NULL);
+    }
+
+    tr_sessionUnlock(session);
 }
 
 /***
@@ -2098,6 +2133,7 @@ void tr_sessionClose(tr_session* session)
     tr_free(session->torrentDoneScript);
     tr_free(session->configDir);
     tr_free(session->resumeDir);
+    tr_free(session->pieceDir);
     tr_free(session->torrentDir);
     tr_free(session->incompleteDir);
     tr_free(session->blocklist_url);

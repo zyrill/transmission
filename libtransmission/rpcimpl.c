@@ -1919,6 +1919,11 @@ static char const* sessionSet(tr_session* session, tr_variant* args_in, tr_varia
         tr_sessionSetDownloadDir(session, download_dir);
     }
 
+    if (tr_variantDictFindStr(args_in, TR_KEY_piece_temp_dir, &str, NULL))
+    {
+        tr_sessionSetPieceTempDir(session, str);
+    }
+
     if (tr_variantDictFindInt(args_in, TR_KEY_queue_stalled_minutes, &i))
     {
         tr_sessionSetQueueStalledMinutes(session, i);
@@ -2204,6 +2209,10 @@ static void addSessionField(tr_session* s, tr_variant* d, tr_quark key)
 
     case TR_KEY_download_queue_size:
         tr_variantDictAddInt(d, key, tr_sessionGetQueueSize(s, TR_DOWN));
+        break;
+
+    case TR_KEY_piece_temp_dir:
+        tr_variantDictAddStr(d, key, tr_sessionGetPieceTempDir(s));
         break;
 
     case TR_KEY_peer_limit_global:

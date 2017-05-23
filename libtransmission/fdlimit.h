@@ -23,6 +23,13 @@
 ****
 ***/
 
+typedef enum
+{
+    TR_FD_INDEX_FILE,
+    TR_FD_INDEX_PIECE
+}
+tr_fd_index_type;
+
 /**
  * Returns an fd to the specified filename.
  *
@@ -38,12 +45,14 @@
  *
  * @see tr_fdFileClose
  */
-tr_sys_file_t tr_fdFileCheckout(tr_session* session, int torrent_id, tr_file_index_t file_num, char const* filename,
-    bool do_write, tr_preallocation_mode preallocation_mode, uint64_t preallocation_file_size);
+tr_sys_file_t tr_fdFileCheckout(tr_session* session, int torrent_id, uint32_t index_num, tr_fd_index_type index_type,
+    char const* filename, bool do_write, tr_preallocation_mode preallocation_mode, uint64_t preallocation_file_size);
 
-tr_sys_file_t tr_fdFileGetCached(tr_session* session, int torrent_id, tr_file_index_t file_num, bool doWrite);
+tr_sys_file_t tr_fdFileGetCached(tr_session* session, int torrent_id, uint32_t index_num, tr_fd_index_type index_type,
+    bool doWrite);
 
-bool tr_fdFileGetCachedMTime(tr_session* session, int torrent_id, tr_file_index_t file_num, time_t* mtime);
+bool tr_fdFileGetCachedMTime(tr_session* session, int torrent_id, uint32_t index_num, tr_fd_index_type index_type,
+    time_t* mtime);
 
 /**
  * Closes a file that's being held by our file repository.
@@ -53,7 +62,7 @@ bool tr_fdFileGetCachedMTime(tr_session* session, int torrent_id, tr_file_index_
  *
  * @see tr_fdFileCheckout
  */
-void tr_fdFileClose(tr_session* session, tr_torrent const* tor, tr_file_index_t file_num);
+void tr_fdFileClose(tr_session* session, tr_torrent const* tor, uint32_t index_num, tr_fd_index_type index_type);
 
 /**
  * Closes all the files associated with a given torrent id

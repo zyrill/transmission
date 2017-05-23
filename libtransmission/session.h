@@ -181,6 +181,7 @@ struct tr_session
 
     char* configDir;
     char* resumeDir;
+    char* pieceDir;
     char* torrentDir;
     char* incompleteDir;
 

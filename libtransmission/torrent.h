@@ -134,6 +134,9 @@ struct tr_torrent
     /* Where the files are when the torrent is incomplete */
     char* incompleteDir;
 
+    /* Where temporary piece files are stored. */
+    char* pieceTempDir;
+
     /* Length, in bytes, of the "info" dict in the .torrent file. */
     size_t infoDictLength;
 
@@ -359,6 +362,26 @@ void tr_torrentGotBlock(tr_torrent* tor, tr_block_index_t blockIndex);
  *                string holding the second half of the filename.
  */
 bool tr_torrentFindFile2(tr_torrent const*, tr_file_index_t fileNo, char const** base, char** subpath, time_t* mtime);
+
+/**
+ * Like tr_torrentFindFile2() but for temporary piece files.
+ * Both @a base and @a subpath may be NULL.
+ *
+ * @see tr_torrentFindFile2()
+ * @see tr_torrentFilePieceTemp()
+ */
+bool tr_torrentFindPieceTemp2(tr_torrent const* tor, tr_piece_index_t pieceIndex, char const** base, char** subpath);
+
+/**
+ * Get the full path of the temporary piece file for piece
+ * with index @a pieceIndex.
+ *
+ * @return a newly allocated string containing the full filename
+ *         or NULL if it does not exist.
+ *
+ * @see tr_torrentFindPieceTemp2()
+ */
+char* tr_torrentFindPieceTemp(tr_torrent const* tor, tr_piece_index_t pieceIndex);
 
 /* Returns a newly-allocated version of the tr_file.name string
  * that's been modified to denote that it's not a complete file yet.
