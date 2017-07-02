@@ -26,6 +26,9 @@
 #include "utils.h" /* tr_time() */
 
 struct evbuffer;
+
+struct struct_utp_context;
+
 struct tr_bandwidth;
 struct tr_datatype;
 struct tr_peerIo;
@@ -108,6 +111,8 @@ tr_peerIo;
 /**
 ***
 **/
+
+void tr_peerIoUtpInit(struct struct_utp_context* ctx);
 
 tr_peerIo* tr_peerIoNewOutgoing(tr_session* session, struct tr_bandwidth* parent, struct tr_address const* addr, tr_port port,
     uint8_t const* torrentHash, bool isSeed, bool utp);

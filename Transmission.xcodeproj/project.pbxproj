@@ -249,14 +249,9 @@
 		A2D8CFBB15F82E030056E93D /* NSStringAdditions.m in Sources */ = {isa = PBXBuildFile; fileRef = 4DE5CC9C0980656F00BE280E /* NSStringAdditions.m */; };
 		A2DF37070C220D03006523C1 /* CreatorWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = A2DF37050C220D03006523C1 /* CreatorWindowController.m */; };
 		A2E23AC60CB5E1930002BB25 /* InfoTabButtonCell.m in Sources */ = {isa = PBXBuildFile; fileRef = A2E23AC40CB5E1930002BB25 /* InfoTabButtonCell.m */; };
-		A2E384DA130DFB3A001F501B /* templates.h in Headers */ = {isa = PBXBuildFile; fileRef = A2E384D2130DFB3A001F501B /* templates.h */; };
-		A2E384DC130DFB3A001F501B /* utp_config.h in Headers */ = {isa = PBXBuildFile; fileRef = A2E384D4130DFB3A001F501B /* utp_config.h */; };
 		A2E384DD130DFB3A001F501B /* utp_utils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A2E384D5130DFB3A001F501B /* utp_utils.cpp */; };
 		A2E384DE130DFB3A001F501B /* utp_utils.h in Headers */ = {isa = PBXBuildFile; fileRef = A2E384D6130DFB3A001F501B /* utp_utils.h */; };
-		A2E384DF130DFB3A001F501B /* utp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A2E384D7130DFB3A001F501B /* utp.cpp */; };
 		A2E384E0130DFB3A001F501B /* utp.h in Headers */ = {isa = PBXBuildFile; fileRef = A2E384D8130DFB3A001F501B /* utp.h */; };
-		A2E384E1130DFB3A001F501B /* utypes.h in Headers */ = {isa = PBXBuildFile; fileRef = A2E384D9130DFB3A001F501B /* utypes.h */; };
-		A2E3850C130DFCCB001F501B /* StdAfx.h in Headers */ = {isa = PBXBuildFile; fileRef = A2E3850B130DFCCB001F501B /* StdAfx.h */; };
 		A2E57ABB1310822C00A7DAB1 /* StatusBarController.m in Sources */ = {isa = PBXBuildFile; fileRef = A2E57ABA1310822C00A7DAB1 /* StatusBarController.m */; };
 		A2E57AC61310831400A7DAB1 /* StatusBar.xib in Resources */ = {isa = PBXBuildFile; fileRef = A2E57AC51310831400A7DAB1 /* StatusBar.xib */; };
 		A2E57B9C13109DC200A7DAB1 /* FilterBar.xib in Resources */ = {isa = PBXBuildFile; fileRef = A2E57B9B13109DC200A7DAB1 /* FilterBar.xib */; };
@@ -349,6 +344,17 @@
 		C1425B361EE9C605001DB85F /* tr-assert.h in Headers */ = {isa = PBXBuildFile; fileRef = C1425B331EE9C5EA001DB85F /* tr-assert.h */; };
 		C1425B371EE9C705001DB85F /* tr-macros.h in Headers */ = {isa = PBXBuildFile; fileRef = C1425B341EE9C5EA001DB85F /* tr-macros.h */; };
 		C1425B381EE9C805001DB85F /* peer-socket.h in Headers */ = {isa = PBXBuildFile; fileRef = C1425B351EE9C5EA001DB85F /* peer-socket.h */; };
+		C16089EF1F092A1E00CEFC36 /* utp_api.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C16089E41F092A1E00CEFC36 /* utp_api.cpp */; };
+		C16089F01F092A1E00CEFC36 /* utp_callbacks.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C16089E51F092A1E00CEFC36 /* utp_callbacks.cpp */; };
+		C16089F11F092A1E00CEFC36 /* utp_callbacks.h in Headers */ = {isa = PBXBuildFile; fileRef = C16089E61F092A1E00CEFC36 /* utp_callbacks.h */; };
+		C16089F21F092A1E00CEFC36 /* utp_hash.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C16089E71F092A1E00CEFC36 /* utp_hash.cpp */; };
+		C16089F31F092A1E00CEFC36 /* utp_hash.h in Headers */ = {isa = PBXBuildFile; fileRef = C16089E81F092A1E00CEFC36 /* utp_hash.h */; };
+		C16089F41F092A1E00CEFC36 /* utp_internal.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C16089E91F092A1E00CEFC36 /* utp_internal.cpp */; };
+		C16089F51F092A1E00CEFC36 /* utp_internal.h in Headers */ = {isa = PBXBuildFile; fileRef = C16089EA1F092A1E00CEFC36 /* utp_internal.h */; };
+		C16089F61F092A1E00CEFC36 /* utp_packedsockaddr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C16089EB1F092A1E00CEFC36 /* utp_packedsockaddr.cpp */; };
+		C16089F71F092A1E00CEFC36 /* utp_packedsockaddr.h in Headers */ = {isa = PBXBuildFile; fileRef = C16089EC1F092A1E00CEFC36 /* utp_packedsockaddr.h */; };
+		C16089F81F092A1E00CEFC36 /* utp_templates.h in Headers */ = {isa = PBXBuildFile; fileRef = C16089ED1F092A1E00CEFC36 /* utp_templates.h */; };
+		C16089F91F092A1E00CEFC36 /* utp_types.h in Headers */ = {isa = PBXBuildFile; fileRef = C16089EE1F092A1E00CEFC36 /* utp_types.h */; };
 		C1639A741A55F4E000E42033 /* libb64.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C1639A6F1A55F4D600E42033 /* libb64.a */; };
 		C1639A781A55F56600E42033 /* cdecode.c in Sources */ = {isa = PBXBuildFile; fileRef = C1639A761A55F56600E42033 /* cdecode.c */; };
 		C1639A791A55F56600E42033 /* cencode.c in Sources */ = {isa = PBXBuildFile; fileRef = C1639A771A55F56600E42033 /* cencode.c */; };
@@ -880,15 +886,9 @@
 		A2DF37050C220D03006523C1 /* CreatorWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = CreatorWindowController.m; path = macosx/CreatorWindowController.m; sourceTree = "<group>"; };
 		A2E23AC30CB5E1930002BB25 /* InfoTabButtonCell.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = InfoTabButtonCell.h; path = macosx/InfoTabButtonCell.h; sourceTree = "<group>"; };
 		A2E23AC40CB5E1930002BB25 /* InfoTabButtonCell.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = InfoTabButtonCell.m; path = macosx/InfoTabButtonCell.m; sourceTree = "<group>"; };
-		A2E384D2130DFB3A001F501B /* templates.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = templates.h; path = "third-party/libutp/templates.h"; sourceTree = "<group>"; };
-		A2E384D3130DFB3A001F501B /* utp_config_example.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = utp_config_example.h; path = "third-party/libutp/utp_config_example.h"; sourceTree = "<group>"; };
-		A2E384D4130DFB3A001F501B /* utp_config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = utp_config.h; path = "third-party/libutp/utp_config.h"; sourceTree = "<group>"; };
 		A2E384D5130DFB3A001F501B /* utp_utils.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = utp_utils.cpp; path = "third-party/libutp/utp_utils.cpp"; sourceTree = "<group>"; };
 		A2E384D6130DFB3A001F501B /* utp_utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = utp_utils.h; path = "third-party/libutp/utp_utils.h"; sourceTree = "<group>"; };
-		A2E384D7130DFB3A001F501B /* utp.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = utp.cpp; path = "third-party/libutp/utp.cpp"; sourceTree = "<group>"; };
 		A2E384D8130DFB3A001F501B /* utp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = utp.h; path = "third-party/libutp/utp.h"; sourceTree = "<group>"; };
-		A2E384D9130DFB3A001F501B /* utypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = utypes.h; path = "third-party/libutp/utypes.h"; sourceTree = "<group>"; };
-		A2E3850B130DFCCB001F501B /* StdAfx.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = StdAfx.h; path = "third-party/libutp/StdAfx.h"; sourceTree = "<group>"; };
 		A2E38544130DFEE3001F501B /* libutp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libutp.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2E57AB91310822C00A7DAB1 /* StatusBarController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = StatusBarController.h; path = macosx/StatusBarController.h; sourceTree = "<group>"; };
 		A2E57ABA1310822C00A7DAB1 /* StatusBarController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = StatusBarController.m; path = macosx/StatusBarController.m; sourceTree = "<group>"; };
@@ -994,6 +994,17 @@
 		C1425B331EE9C5EA001DB85F /* tr-assert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "tr-assert.h"; path = "libtransmission/tr-assert.h"; sourceTree = "<group>"; };
 		C1425B341EE9C5EA001DB85F /* tr-macros.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "tr-macros.h"; path = "libtransmission/tr-macros.h"; sourceTree = "<group>"; };
 		C1425B351EE9C5EA001DB85F /* peer-socket.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "peer-socket.h"; path = "libtransmission/peer-socket.h"; sourceTree = "<group>"; };
+		C16089E41F092A1E00CEFC36 /* utp_api.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = utp_api.cpp; path = "third-party/libutp/utp_api.cpp"; sourceTree = "<group>"; };
+		C16089E51F092A1E00CEFC36 /* utp_callbacks.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = utp_callbacks.cpp; path = "third-party/libutp/utp_callbacks.cpp"; sourceTree = "<group>"; };
+		C16089E61F092A1E00CEFC36 /* utp_callbacks.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = utp_callbacks.h; path = "third-party/libutp/utp_callbacks.h"; sourceTree = "<group>"; };
+		C16089E71F092A1E00CEFC36 /* utp_hash.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = utp_hash.cpp; path = "third-party/libutp/utp_hash.cpp"; sourceTree = "<group>"; };
+		C16089E81F092A1E00CEFC36 /* utp_hash.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = utp_hash.h; path = "third-party/libutp/utp_hash.h"; sourceTree = "<group>"; };
+		C16089E91F092A1E00CEFC36 /* utp_internal.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = utp_internal.cpp; path = "third-party/libutp/utp_internal.cpp"; sourceTree = "<group>"; };
+		C16089EA1F092A1E00CEFC36 /* utp_internal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = utp_internal.h; path = "third-party/libutp/utp_internal.h"; sourceTree = "<group>"; };
+		C16089EB1F092A1E00CEFC36 /* utp_packedsockaddr.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = utp_packedsockaddr.cpp; path = "third-party/libutp/utp_packedsockaddr.cpp"; sourceTree = "<group>"; };
+		C16089EC1F092A1E00CEFC36 /* utp_packedsockaddr.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = utp_packedsockaddr.h; path = "third-party/libutp/utp_packedsockaddr.h"; sourceTree = "<group>"; };
+		C16089ED1F092A1E00CEFC36 /* utp_templates.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = utp_templates.h; path = "third-party/libutp/utp_templates.h"; sourceTree = "<group>"; };
+		C16089EE1F092A1E00CEFC36 /* utp_types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = utp_types.h; path = "third-party/libutp/utp_types.h"; sourceTree = "<group>"; };
 		C1639A6F1A55F4D600E42033 /* libb64.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libb64.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1639A761A55F56600E42033 /* cdecode.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = cdecode.c; path = "third-party/libb64/src/cdecode.c"; sourceTree = "<group>"; };
 		C1639A771A55F56600E42033 /* cencode.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = cencode.c; path = "third-party/libb64/src/cencode.c"; sourceTree = "<group>"; };
@@ -1562,15 +1573,20 @@
 		A2E384BF130DFA49001F501B /* libutp */ = {
 			isa = PBXGroup;
 			children = (
-				A2E384D2130DFB3A001F501B /* templates.h */,
-				A2E384D3130DFB3A001F501B /* utp_config_example.h */,
-				A2E384D4130DFB3A001F501B /* utp_config.h */,
+				C16089E41F092A1E00CEFC36 /* utp_api.cpp */,
+				C16089E51F092A1E00CEFC36 /* utp_callbacks.cpp */,
+				C16089E61F092A1E00CEFC36 /* utp_callbacks.h */,
+				C16089E71F092A1E00CEFC36 /* utp_hash.cpp */,
+				C16089E81F092A1E00CEFC36 /* utp_hash.h */,
+				C16089E91F092A1E00CEFC36 /* utp_internal.cpp */,
+				C16089EA1F092A1E00CEFC36 /* utp_internal.h */,
+				C16089EB1F092A1E00CEFC36 /* utp_packedsockaddr.cpp */,
+				C16089EC1F092A1E00CEFC36 /* utp_packedsockaddr.h */,
+				C16089ED1F092A1E00CEFC36 /* utp_templates.h */,
+				C16089EE1F092A1E00CEFC36 /* utp_types.h */,
 				A2E384D5130DFB3A001F501B /* utp_utils.cpp */,
 				A2E384D6130DFB3A001F501B /* utp_utils.h */,
-				A2E384D7130DFB3A001F501B /* utp.cpp */,
 				A2E384D8130DFB3A001F501B /* utp.h */,
-				A2E384D9130DFB3A001F501B /* utypes.h */,
-				A2E3850B130DFCCB001F501B /* StdAfx.h */,
 			);
 			name = libutp;
 			sourceTree = "<group>";
@@ -1854,12 +1870,14 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A2E384DA130DFB3A001F501B /* templates.h in Headers */,
-				A2E384DC130DFB3A001F501B /* utp_config.h in Headers */,
+				C16089F31F092A1E00CEFC36 /* utp_hash.h in Headers */,
+				C16089F51F092A1E00CEFC36 /* utp_internal.h in Headers */,
+				C16089F81F092A1E00CEFC36 /* utp_templates.h in Headers */,
 				A2E384DE130DFB3A001F501B /* utp_utils.h in Headers */,
+				C16089F71F092A1E00CEFC36 /* utp_packedsockaddr.h in Headers */,
 				A2E384E0130DFB3A001F501B /* utp.h in Headers */,
-				A2E384E1130DFB3A001F501B /* utypes.h in Headers */,
-				A2E3850C130DFCCB001F501B /* StdAfx.h in Headers */,
+				C16089F91F092A1E00CEFC36 /* utp_types.h in Headers */,
+				C16089F11F092A1E00CEFC36 /* utp_callbacks.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2498,8 +2516,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C16089F61F092A1E00CEFC36 /* utp_packedsockaddr.cpp in Sources */,
+				C16089EF1F092A1E00CEFC36 /* utp_api.cpp in Sources */,
+				C16089F21F092A1E00CEFC36 /* utp_hash.cpp in Sources */,
+				C16089F01F092A1E00CEFC36 /* utp_callbacks.cpp in Sources */,
+				C16089F41F092A1E00CEFC36 /* utp_internal.cpp in Sources */,
 				A2E384DD130DFB3A001F501B /* utp_utils.cpp in Sources */,
-				A2E384DF130DFB3A001F501B /* utp.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2940,6 +2962,7 @@
 					"$(inherited)",
 					"\"$(SRCROOT)/third-party/curl/lib\"",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = Transmission;
 				WRAPPER_EXTENSION = app;
 			};
@@ -2952,6 +2975,7 @@
 					"third-party/curl/include",
 					.,
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = transmissioncli;
 			};
 			name = Debug;
@@ -2968,6 +2992,7 @@
 					"$(inherited)",
 					"-DHAVE_DAEMON",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = "transmission-daemon";
 			};
 			name = Debug;
@@ -2980,6 +3005,7 @@
 					.,
 					"third-party/libevent/include",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = "transmission-remote";
 			};
 			name = Debug;
@@ -3106,6 +3132,7 @@
 					"third-party/curl/include",
 					.,
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = transmissioncli;
 			};
 			name = Release;
@@ -3120,6 +3147,7 @@
 					"$(inherited)",
 					"\"$(SRCROOT)/third-party/curl/lib\"",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = Transmission;
 				WRAPPER_EXTENSION = app;
 			};
@@ -3268,6 +3296,7 @@
 					"$(inherited)",
 					"\"$(SRCROOT)/third-party/curl/lib\"",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = Transmission;
 				WRAPPER_EXTENSION = app;
 			};
@@ -3280,6 +3309,7 @@
 					"third-party/curl/include",
 					.,
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = transmissioncli;
 			};
 			name = "Release - Debug";
@@ -3330,6 +3360,7 @@
 					"$(inherited)",
 					"-DHAVE_DAEMON",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = "transmission-daemon";
 			};
 			name = "Release - Debug";
@@ -3342,6 +3373,7 @@
 					.,
 					"third-party/libevent/include",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = "transmission-remote";
 			};
 			name = "Release - Debug";
@@ -3389,6 +3421,7 @@
 				INFOPLIST_FILE = "$(SRCROOT)/macosx/QuickLookPlugin/QuickLookPlugin-Info.plist";
 				INSTALL_PATH = /Library/QuickLook;
 				OTHER_LDFLAGS = (
+					"-lc++",
 					"-read_only_relocs",
 					suppress,
 				);
@@ -3404,6 +3437,7 @@
 				INFOPLIST_FILE = "$(SRCROOT)/macosx/QuickLookPlugin/QuickLookPlugin-Info.plist";
 				INSTALL_PATH = /Library/QuickLook;
 				OTHER_LDFLAGS = (
+					"-lc++",
 					"-read_only_relocs",
 					suppress,
 				);
@@ -3419,6 +3453,7 @@
 				INFOPLIST_FILE = "$(SRCROOT)/macosx/QuickLookPlugin/QuickLookPlugin-Info.plist";
 				INSTALL_PATH = /Library/QuickLook;
 				OTHER_LDFLAGS = (
+					"-lc++",
 					"-read_only_relocs",
 					suppress,
 				);
@@ -3469,6 +3504,7 @@
 					"$(inherited)",
 					"-DHAVE_DAEMON",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = "transmission-daemon";
 			};
 			name = Release;
@@ -3481,6 +3517,7 @@
 					.,
 					"third-party/libevent/include",
 				);
+				OTHER_LDFLAGS = "-lc++";
 				PRODUCT_NAME = "transmission-remote";
 			};
 			name = Release;

@@ -777,6 +777,8 @@ static void tr_sessionInitImpl(void* vdata)
         tr_lpdInit(session, &session->public_ipv4->addr);
     }
 
+    tr_utpInit(session);
+
     /* cleanup */
     tr_variantFree(&settings);
     data->done = true;
@@ -1925,7 +1927,6 @@ static void sessionCloseImplStart(tr_session* session)
         tr_lpdUninit(session);
     }
 
-    tr_utpClose(session);
     tr_dhtUninit(session);
 
     event_free(session->saveTimer);
@@ -2002,6 +2003,8 @@ static void sessionCloseImplFinish(tr_session* session)
 
     tr_statsClose(session);
     tr_peerMgrFree(session->peerMgr);
+
+    tr_utpClose(session);
 
     closeBlocklists(session);
 
