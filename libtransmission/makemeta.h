@@ -85,7 +85,7 @@ typedef struct tr_metainfo_builder
 }
 tr_metainfo_builder;
 
-tr_metainfo_builder* tr_metaInfoBuilderCreate(char const* topFile);
+tr_metainfo_builder* tr_metaInfoBuilderCreate(char const* topFile, bool includeHiddenFiles);
 
 /**
  * Call this before tr_makeMetaInfo() to override the builder.pieceSize

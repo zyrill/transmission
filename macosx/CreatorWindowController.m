@@ -72,11 +72,11 @@ NSMutableSet *creatorWindowControllerSet = nil;
         if (!creatorWindowControllerSet) {
             creatorWindowControllerSet = [NSMutableSet set];
         }
-        
+
         fStarted = NO;
 
         fPath = path;
-        fInfo = tr_metaInfoBuilderCreate([[fPath path] UTF8String]);
+        fInfo = tr_metaInfoBuilderCreate([[fPath path] UTF8String], false);
 
         if (fInfo->fileCount == 0)
         {
@@ -133,7 +133,7 @@ NSMutableSet *creatorWindowControllerSet = nil;
             if (!tr_urlIsValidTracker([fTrackers[i] UTF8String]))
                 [fTrackers removeObjectAtIndex: i];
         }
-        
+
         [creatorWindowControllerSet addObject:self];
     }
     return self;

@@ -25,6 +25,7 @@
 static uint32_t const KiB = 1024;
 static tr_tracker_info trackers[MAX_TRACKERS];
 static int trackerCount = 0;
+static bool includeHiddenFiles = false;
 static bool isPrivate = false;
 static bool showVersion = false;
 static char const* comment = NULL;
@@ -39,6 +40,7 @@ static tr_option options[] =
     { 's', "piecesize", "Set how many KiB each piece should be, overriding the preferred default", "s", 1, "<size in KiB>" },
     { 'c', "comment", "Add a comment", "c", 1, "<comment>" },
     { 't', "tracker", "Add a tracker's announce URL", "t", 1, "<url>" },
+    { 'H', "include-hidden", "Include hidden files and directories into the torrent", "H", 0, NULL },
     { 'V', "version", "Show version number and exit", "V", 0, NULL },
     { 0, NULL, NULL, NULL, 0, NULL }
 };
@@ -63,6 +65,10 @@ static int parseCommandLine(int argc, char const* const* argv)
 
         case 'p':
             isPrivate = true;
+            break;
+
+        case 'H':
+            includeHiddenFiles = true;
             break;
 
         case 'o':
@@ -190,7 +196,7 @@ int tr_main(int argc, char* argv[])
     printf("Creating torrent \"%s\" ...", outfile);
     fflush(stdout);
 
-    b = tr_metaInfoBuilderCreate(infile);
+    b = tr_metaInfoBuilderCreate(infile, includeHiddenFiles);
 
     if (b == NULL)
     {

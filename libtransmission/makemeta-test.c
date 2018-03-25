@@ -34,7 +34,7 @@ static int test_single_file_impl(tr_tracker_info const* trackers, size_t const t
     /* create a single input file */
     input_file = tr_buildPath(sandbox, "test.XXXXXX", NULL);
     libtest_create_tmpfile_with_contents(input_file, payload, payloadSize);
-    builder = tr_metaInfoBuilderCreate(input_file);
+    builder = tr_metaInfoBuilderCreate(input_file, false);
     check_str(builder->top, ==, input_file);
     check_int(builder->fileCount, ==, 1);
     check_str(builder->files[0].filename, ==, input_file);
@@ -147,7 +147,7 @@ static int test_single_directory_impl(tr_tracker_info const* trackers, size_t co
     libttest_sync();
 
     /* init the builder */
-    builder = tr_metaInfoBuilderCreate(top);
+    builder = tr_metaInfoBuilderCreate(top, false);
     check(!builder->abortFlag);
     check_str(builder->top, ==, top);
     check_int(builder->fileCount, ==, payloadCount);

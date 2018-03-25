@@ -330,7 +330,7 @@ static void setFilename(MakeMetaUI* ui, char const* filename)
 
     if (filename)
     {
-        ui->builder = tr_metaInfoBuilderCreate(filename);
+        ui->builder = tr_metaInfoBuilderCreate(filename, false);
     }
 
     updatePiecesLabel(ui);

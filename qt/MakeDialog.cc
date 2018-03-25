@@ -207,7 +207,7 @@ void MakeDialog::onSourceChanged()
 
     if (!filename.isEmpty())
     {
-        myBuilder.reset(tr_metaInfoBuilderCreate(filename.toUtf8().constData()));
+        myBuilder.reset(tr_metaInfoBuilderCreate(filename.toUtf8().constData(), false));
     }
 
     QString text;

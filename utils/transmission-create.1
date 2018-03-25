@@ -9,6 +9,7 @@
 .Nm
 .Op Fl h
 .Op Fl p
+.Op Fl H
 .Op Fl o Ar file
 .Op Fl c Ar comment
 .Op Fl t Ar tracker
@@ -36,6 +37,11 @@ Add a tracker's
 to the .torrent. Most torrents will have at least one
 .Ar announce URL.
 To add more than one, use this option multiple times.
+.It Fl H Fl -include-hidden
+Include hidden files and directories into the torrent. The notion of "hidden"
+varies between platforms; on *NIX systems these are the files and directories
+having name starting with a dot (".") character, on Windows they will have a
+corresponding attribute set instead.
 .El
 .Sh AUTHORS
 .An -nosplit

@@ -36,7 +36,7 @@ struct FileList
     struct FileList* next;
 };
 
-static struct FileList* getFiles(char const* dir, char const* base, struct FileList* list)
+static struct FileList* getFiles(char const* dir, char const* base, int readDirFlags, struct FileList* list)
 {
     if (dir == NULL || base == NULL)
     {
@@ -62,9 +62,9 @@ static struct FileList* getFiles(char const* dir, char const* base, struct FileL
     {
         char const* name;
 
-        while ((name = tr_sys_dir_read_name(odir, TR_SYS_DIR_READ_SKIP_HIDDEN, NULL)) != NULL)
+        while ((name = tr_sys_dir_read_name(odir, readDirFlags, NULL)) != NULL)
         {
-            list = getFiles(buf, name, list);
+            list = getFiles(buf, name, readDirFlags, list);
         }
 
         tr_sys_dir_close(odir, NULL);
@@ -129,7 +129,7 @@ static int builderFileCompare(void const* va, void const* vb)
     return evutil_ascii_strcasecmp(a->filename, b->filename);
 }
 
-tr_metainfo_builder* tr_metaInfoBuilderCreate(char const* topFileArg)
+tr_metainfo_builder* tr_metaInfoBuilderCreate(char const* topFileArg, bool includeHiddenFiles)
 {
     char* const real_top = tr_sys_path_resolve(topFileArg, NULL);
 
@@ -154,7 +154,10 @@ tr_metainfo_builder* tr_metaInfoBuilderCreate(char const* topFileArg)
     {
         char* dir = tr_sys_path_dirname(ret->top, NULL);
         char* base = tr_sys_path_basename(ret->top, NULL);
-        files = getFiles(dir, base, NULL);
+        int const readDirFlags = includeHiddenFiles ? 0 : TR_SYS_DIR_READ_SKIP_HIDDEN;
+
+        files = getFiles(dir, base, readDirFlags, NULL);
+
         tr_free(base);
         tr_free(dir);
     }
