@@ -362,11 +362,6 @@ void tr_watchdir_scan(tr_watchdir_t handle, tr_ptrArray* dir_entries)
 
     while ((name = tr_sys_dir_read_name(dir, &error)) != NULL)
     {
-        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
-        {
-            continue;
-        }
-
         if (dir_entries != NULL)
         {
             tr_ptrArrayInsertSorted(&new_dir_entries, tr_strdup(name), name_compare_func);

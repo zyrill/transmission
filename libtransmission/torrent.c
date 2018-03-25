@@ -2980,22 +2980,19 @@ static void removeEmptyFoldersAndJunkFiles(char const* folder)
 
         while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
         {
-            if (strcmp(name, ".") != 0 && strcmp(name, "..") != 0)
+            tr_sys_path_info info;
+            char* filename = tr_buildPath(folder, name, NULL);
+
+            if (tr_sys_path_get_info(filename, 0, &info, NULL) && info.type == TR_SYS_PATH_IS_DIRECTORY)
             {
-                tr_sys_path_info info;
-                char* filename = tr_buildPath(folder, name, NULL);
-
-                if (tr_sys_path_get_info(filename, 0, &info, NULL) && info.type == TR_SYS_PATH_IS_DIRECTORY)
-                {
-                    removeEmptyFoldersAndJunkFiles(filename);
-                }
-                else if (isJunkFile(name))
-                {
-                    tr_sys_path_remove(filename, NULL);
-                }
-
-                tr_free(filename);
+                removeEmptyFoldersAndJunkFiles(filename);
             }
+            else if (isJunkFile(name))
+            {
+                tr_sys_path_remove(filename, NULL);
+            }
+
+            tr_free(filename);
         }
 
         tr_sys_path_remove(folder, NULL);
@@ -3090,12 +3087,9 @@ static void deleteLocalData(tr_torrent* tor, tr_fileFunc func)
 
         while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
         {
-            if (strcmp(name, ".") != 0 && strcmp(name, "..") != 0)
-            {
-                char* file = tr_buildPath(tmpdir, name, NULL);
-                (*func)(file, NULL);
-                tr_free(file);
-            }
+            char* file = tr_buildPath(tmpdir, name, NULL);
+            (*func)(file, NULL);
+            tr_free(file);
         }
 
         tr_sys_dir_close(odir, NULL);

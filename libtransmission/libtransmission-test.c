@@ -225,12 +225,9 @@ static void rm_rf(char const* killme)
 
             while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
             {
-                if (strcmp(name, ".") != 0 && strcmp(name, "..") != 0)
-                {
-                    char* tmp = tr_buildPath(killme, name, NULL);
-                    rm_rf(tmp);
-                    tr_free(tmp);
-                }
+                char* tmp = tr_buildPath(killme, name, NULL);
+                rm_rf(tmp);
+                tr_free(tmp);
             }
 
             tr_sys_dir_close(odir, NULL);

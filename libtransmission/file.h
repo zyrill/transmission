@@ -646,7 +646,8 @@ tr_sys_dir_t tr_sys_dir_open(char const* path, struct tr_error** error);
  *         it to @ref tr_free) on success, `NULL` otherwise (with `error` set
  *         accordingly). Note that `NULL` will also be returned in case of end
  *         of directory; if you need to distinguish the two, check if `error`
- *         is `NULL` afterwards.
+ *         is `NULL` afterwards. Directory pointer entries (like "." and "..")
+ *         are never returned.
  */
 char const* tr_sys_dir_read_name(tr_sys_dir_t handle, struct tr_error** error);
 

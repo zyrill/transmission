@@ -136,6 +136,11 @@ static void set_file_for_single_pass(tr_sys_file_t handle)
     errno = err;
 }
 
+static bool is_dir_pointer(char const* name)
+{
+    return name[0] == '.' && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
+}
+
 #ifndef HAVE_MKDIRP
 
 static bool create_path_require_dir(char const* path, tr_error** error)
@@ -1155,21 +1160,32 @@ char const* tr_sys_dir_read_name(tr_sys_dir_t handle, tr_error** error)
 {
     TR_ASSERT(handle != TR_BAD_SYS_DIR);
 
-    char const* ret = NULL;
+    struct dirent* entry;
 
-    errno = 0;
-    struct dirent* entry = readdir(handle);
-
-    if (entry != NULL)
+    while (true)
     {
-        ret = entry->d_name;
-    }
-    else if (errno != 0)
-    {
-        set_system_error(error, errno);
+        errno = 0;
+        entry = readdir(handle);
+
+        if (entry == NULL)
+        {
+            if (errno != 0)
+            {
+                set_system_error(error, errno);
+            }
+
+            return NULL;
+        }
+
+        if (is_dir_pointer(entry->d_name))
+        {
+            continue;
+        }
+
+        break;
     }
 
-    return ret;
+    return entry->d_name;
 }
 
 bool tr_sys_dir_close(tr_sys_dir_t handle, tr_error** error)

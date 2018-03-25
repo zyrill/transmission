@@ -112,6 +112,11 @@ static inline bool is_slash(char c)
     return c == '\\' || c == '/';
 }
 
+static bool is_dir_pointer(wchar_t const* name)
+{
+    return name[0] == L'.' && (name[1] == L'\0' || (name[1] == L'.' && name[2] == L'\0'));
+}
+
 static inline bool is_unc_path(char const* path)
 {
     return is_slash(path[0]) && path[1] == path[0];
@@ -1357,29 +1362,39 @@ char const* tr_sys_dir_read_name(tr_sys_dir_t handle, tr_error** error)
 {
     TR_ASSERT(handle != TR_BAD_SYS_DIR);
 
-    DWORD error_code = ERROR_SUCCESS;
-
-    if (handle->find_handle == INVALID_HANDLE_VALUE)
+    while (true)
     {
-        handle->find_handle = FindFirstFileW(handle->pattern, &handle->find_data);
+        DWORD error_code = ERROR_SUCCESS;
 
         if (handle->find_handle == INVALID_HANDLE_VALUE)
         {
-            error_code = GetLastError();
-        }
-    }
-    else
-    {
-        if (!FindNextFileW(handle->find_handle, &handle->find_data))
-        {
-            error_code = GetLastError();
-        }
-    }
+            handle->find_handle = FindFirstFileW(handle->pattern, &handle->find_data);
 
-    if (error_code != ERROR_SUCCESS)
-    {
-        set_system_error_if_file_found(error, error_code);
-        return NULL;
+            if (handle->find_handle == INVALID_HANDLE_VALUE)
+            {
+                error_code = GetLastError();
+            }
+        }
+        else
+        {
+            if (!FindNextFileW(handle->find_handle, &handle->find_data))
+            {
+                error_code = GetLastError();
+            }
+        }
+
+        if (error_code != ERROR_SUCCESS)
+        {
+            set_system_error_if_file_found(error, error_code);
+            return NULL;
+        }
+
+        if (is_dir_pointer(handle->find_data.cFileName))
+        {
+            continue;
+        }
+
+        break;
     }
 
     char* ret = tr_win32_native_to_utf8(handle->find_data.cFileName, -1);

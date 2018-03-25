@@ -1528,11 +1528,8 @@ static int test_dir_read_impl(char const* path, bool* have1, bool* have2)
     while ((name = tr_sys_dir_read_name(dd, &err)) != NULL)
     {
         check_ptr(err, ==, NULL);
-
-        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
-        {
-            continue;
-        }
+        check_str(name, !=, ".");
+        check_str(name, !=, "..");
 
         if (strcmp(name, "a") == 0)
         {
