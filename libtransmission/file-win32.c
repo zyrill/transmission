@@ -1358,7 +1358,7 @@ tr_sys_dir_t tr_sys_dir_open(char const* path, tr_error** error)
     return ret;
 }
 
-char const* tr_sys_dir_read_name(tr_sys_dir_t handle, tr_error** error)
+char const* tr_sys_dir_read_name(tr_sys_dir_t handle, int flags, tr_error** error)
 {
     TR_ASSERT(handle != TR_BAD_SYS_DIR);
 
@@ -1390,6 +1390,11 @@ char const* tr_sys_dir_read_name(tr_sys_dir_t handle, tr_error** error)
         }
 
         if (is_dir_pointer(handle->find_data.cFileName))
+        {
+            continue;
+        }
+
+        if ((flags & TR_SYS_DIR_READ_SKIP_HIDDEN) != 0 && (handle->find_data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0)
         {
             continue;
         }

@@ -223,7 +223,7 @@ static void rm_rf(char const* killme)
         {
             char const* name;
 
-            while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
+            while ((name = tr_sys_dir_read_name(odir, 0, NULL)) != NULL)
             {
                 char* tmp = tr_buildPath(killme, name, NULL);
                 rm_rf(tmp);

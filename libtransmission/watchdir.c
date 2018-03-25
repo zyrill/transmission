@@ -360,7 +360,7 @@ void tr_watchdir_scan(tr_watchdir_t handle, tr_ptrArray* dir_entries)
         return;
     }
 
-    while ((name = tr_sys_dir_read_name(dir, &error)) != NULL)
+    while ((name = tr_sys_dir_read_name(dir, 0, &error)) != NULL)
     {
         if (dir_entries != NULL)
         {

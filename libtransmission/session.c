@@ -2136,7 +2136,7 @@ static void sessionLoadTorrents(void* vdata)
     {
         char const* name;
 
-        while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
+        while ((name = tr_sys_dir_read_name(odir, 0, NULL)) != NULL)
         {
             if (tr_str_has_suffix(name, ".torrent"))
             {
@@ -2419,17 +2419,10 @@ static void loadBlocklists(tr_session* session)
         return;
     }
 
-    while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
+    while ((name = tr_sys_dir_read_name(odir, TR_SYS_DIR_READ_SKIP_HIDDEN, NULL)) != NULL)
     {
-        char* path;
+        char* path = tr_buildPath(dirname, name, NULL);
         char* load = NULL;
-
-        if (name[0] == '.') /* ignore dotfiles */
-        {
-            continue;
-        }
-
-        path = tr_buildPath(dirname, name, NULL);
 
         if (tr_stringEndsWith(path, ".bin"))
         {
@@ -2652,7 +2645,7 @@ static void metainfoLookupInit(tr_session* session)
     {
         char const* name;
 
-        while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
+        while ((name = tr_sys_dir_read_name(odir, 0, NULL)) != NULL)
         {
             if (tr_str_has_suffix(name, ".torrent"))
             {

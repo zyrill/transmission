@@ -117,6 +117,12 @@ tr_sys_dir_create_flags_t;
 
 typedef enum
 {
+    TR_SYS_DIR_READ_SKIP_HIDDEN = (1 << 0)
+}
+tr_sys_dir_read_flags_t;
+
+typedef enum
+{
     TR_SYS_PATH_IS_FILE,
     TR_SYS_PATH_IS_DIRECTORY,
     TR_SYS_PATH_IS_OTHER
@@ -639,6 +645,7 @@ tr_sys_dir_t tr_sys_dir_open(char const* path, struct tr_error** error);
  * @brief Portability wrapper for `readdir()`.
  *
  * @param[in]  handle Valid directory descriptor.
+ * @param[in]  flags  Combination of @ref tr_sys_dir_read_flags_t values.
  * @param[out] error  Pointer to error object. Optional, pass `NULL` if you are
  *                    not interested in error details.
  *
@@ -649,7 +656,7 @@ tr_sys_dir_t tr_sys_dir_open(char const* path, struct tr_error** error);
  *         is `NULL` afterwards. Directory pointer entries (like "." and "..")
  *         are never returned.
  */
-char const* tr_sys_dir_read_name(tr_sys_dir_t handle, struct tr_error** error);
+char const* tr_sys_dir_read_name(tr_sys_dir_t handle, int flags, struct tr_error** error);
 
 /**
  * @brief Portability wrapper for `closedir()`.

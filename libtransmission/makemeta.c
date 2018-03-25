@@ -62,12 +62,9 @@ static struct FileList* getFiles(char const* dir, char const* base, struct FileL
     {
         char const* name;
 
-        while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
+        while ((name = tr_sys_dir_read_name(odir, TR_SYS_DIR_READ_SKIP_HIDDEN, NULL)) != NULL)
         {
-            if (name[0] != '.') /* skip dotfiles */
-            {
-                list = getFiles(buf, name, list);
-            }
+            list = getFiles(buf, name, list);
         }
 
         tr_sys_dir_close(odir, NULL);

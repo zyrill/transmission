@@ -1525,7 +1525,7 @@ static int test_dir_read_impl(char const* path, bool* have1, bool* have2)
     check_ptr(dd, !=, TR_BAD_SYS_DIR);
     check_ptr(err, ==, NULL);
 
-    while ((name = tr_sys_dir_read_name(dd, &err)) != NULL)
+    while ((name = tr_sys_dir_read_name(dd, 0, &err)) != NULL)
     {
         check_ptr(err, ==, NULL);
         check_str(name, !=, ".");

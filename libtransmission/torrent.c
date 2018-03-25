@@ -2978,7 +2978,7 @@ static void removeEmptyFoldersAndJunkFiles(char const* folder)
     {
         char const* name;
 
-        while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
+        while ((name = tr_sys_dir_read_name(odir, 0, NULL)) != NULL)
         {
             tr_sys_path_info info;
             char* filename = tr_buildPath(folder, name, NULL);
@@ -3085,7 +3085,7 @@ static void deleteLocalData(tr_torrent* tor, tr_fileFunc func)
     {
         char const* name;
 
-        while ((name = tr_sys_dir_read_name(odir, NULL)) != NULL)
+        while ((name = tr_sys_dir_read_name(odir, 0, NULL)) != NULL)
         {
             char* file = tr_buildPath(tmpdir, name, NULL);
             (*func)(file, NULL);
