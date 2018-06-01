@@ -98,28 +98,64 @@ static int test_buildpath(void)
 static int test_utf8(void)
 {
     char const* in;
+    char const* in_err;
     char* out;
 
     in = "hello world";
+    check(tr_utf8_validate(in, TR_BAD_SIZE, NULL));
     out = tr_utf8clean(in, TR_BAD_SIZE);
+    check(tr_utf8_validate(out, TR_BAD_SIZE, NULL));
     check_str(out, ==, in);
     tr_free(out);
 
     in = "hello world";
+    check(tr_utf8_validate(in, 5, NULL));
     out = tr_utf8clean(in, 5);
+    check(tr_utf8_validate(out, TR_BAD_SIZE, NULL));
     check_str(out, ==, "hello");
     tr_free(out);
 
     /* this version is not utf-8 (but cp866) */
     in = "\x92\xE0\xE3\xA4\xAD\xAE \xA1\xEB\xE2\xEC \x81\xAE\xA3\xAE\xAC";
+    check(!tr_utf8_validate(in, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 0);
+    check(!tr_utf8_validate(in + 1, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 1);
+    check(!tr_utf8_validate(in + 2, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 5);
+    check(!tr_utf8_validate(in + 6, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 7);
+    check(!tr_utf8_validate(in + 8, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 8);
+    check(!tr_utf8_validate(in + 9, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 9);
+    check(!tr_utf8_validate(in + 10, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 10);
+    check(!tr_utf8_validate(in + 11, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 12);
+    check(!tr_utf8_validate(in + 13, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 13);
+    check(!tr_utf8_validate(in + 14, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 14);
+    check(!tr_utf8_validate(in + 15, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 15);
+    check(!tr_utf8_validate(in + 16, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 16);
+    check(tr_utf8_validate(in + 17, TR_BAD_SIZE, NULL));
     out = tr_utf8clean(in, 17);
     check_ptr(out, !=, NULL);
-    check(strlen(out) == 17 || strlen(out) == 33);
     check(tr_utf8_validate(out, TR_BAD_SIZE, NULL));
+#ifdef HAVE_ICONV
+    check_str(out, ==, "\xC2\x92\xC3\xA0\xC3\xA3\xE2\x82\xAC\xC2\xAD\xC2\xAE \xC2\xA1\xC3\xAB\xC3\xA2\xC3\xAC "
+        "\xC2\x81\xC2\xAE\xC2\xA3\xC2\xAE\xC2\xAC");
+#else
+    check_str(out, ==, "??\xE3\xA4\xAD? ???? ?????");
+#endif
     tr_free(out);
 
     /* same string, but utf-8 clean */
     in = "Трудно быть Богом";
+    check(tr_utf8_validate(in, TR_BAD_SIZE, NULL));
     out = tr_utf8clean(in, TR_BAD_SIZE);
     check_ptr(out, !=, NULL);
     check(tr_utf8_validate(out, TR_BAD_SIZE, NULL));
@@ -127,17 +163,35 @@ static int test_utf8(void)
     tr_free(out);
 
     in = "\xF4\x00\x81\x82";
+    check(!tr_utf8_validate(in, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 0);
+    check(tr_utf8_validate(in + 1, TR_BAD_SIZE, NULL));
     out = tr_utf8clean(in, 4);
     check_ptr(out, !=, NULL);
-    check(strlen(out) == 1 || strlen(out) == 2);
     check(tr_utf8_validate(out, TR_BAD_SIZE, NULL));
+#ifdef HAVE_ICONV
+    check_str(out, ==, "\xC3\xB4");
+#else
+    check_str(out, ==, "?");
+#endif
     tr_free(out);
 
     in = "\xF4\x33\x81\x82";
+    check(!tr_utf8_validate(in, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 0);
+    check(!tr_utf8_validate(in + 2, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 2);
+    check(!tr_utf8_validate(in + 3, TR_BAD_SIZE, &in_err));
+    check_ptr(in_err, ==, in + 3);
+    check(tr_utf8_validate(in + 4, TR_BAD_SIZE, NULL));
     out = tr_utf8clean(in, 4);
     check_ptr(out, !=, NULL);
-    check(strlen(out) == 4 || strlen(out) == 7);
     check(tr_utf8_validate(out, TR_BAD_SIZE, NULL));
+#ifdef HAVE_ICONV
+    check_str(out, ==, "\xC3\xB4\x33\xC2\x81\xC2\x82");
+#else
+    check_str(out, ==, "?3??");
+#endif
     tr_free(out);
 
     return 0;

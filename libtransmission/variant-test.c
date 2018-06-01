@@ -27,123 +27,178 @@
 #define STACK_SMASH_DEPTH (100 * 1000)
 #endif
 
-static int testInt(void)
+static int testBencInt(void)
 {
-    uint8_t buf[128];
-    int64_t val;
-    int err;
-    uint8_t const* end;
+    struct test_data
+    {
+        char const* input;
+        size_t input_len;
+        int expected_err;
+        int64_t expected_val;
+        size_t expected_len;
+    }
+    const test_data[] =
+    {
+        { "i64e", 4, 0, 64, 4 }, /* good int string */
+        { "i64e", 3, EILSEQ, 888, TR_BAD_SIZE }, /* missing 'e' */
+        { "i64e", 0, EILSEQ, 888, TR_BAD_SIZE }, /* empty buffer */
+        { "i6z4e", 5, EILSEQ, 888, TR_BAD_SIZE }, /* bad number */
+        { "i-3e", 4, 0, -3, 4 }, /* negative number */
+        { "i0e", 3, 0, 0, 3 }, /* zero */
+        { "i04e", 4, EILSEQ, 888, TR_BAD_SIZE } /* no leading zeroes allowed */
+    };
 
-    /* good int string */
-    tr_snprintf((char*)buf, sizeof(buf), "i64e");
-    err = tr_bencParseInt(buf, buf + 4, &end, &val);
-    check_int(err, ==, 0);
-    check_int(val, ==, 64);
-    check_ptr(end, ==, buf + 4);
+    for (size_t i = 0; i < TR_N_ELEMENTS(test_data); ++i)
+    {
+        struct test_data const* data = &test_data[i];
 
-    /* missing 'e' */
-    end = NULL;
-    val = 888;
-    err = tr_bencParseInt(buf, buf + 3, &end, &val);
-    check_int(err, ==, EILSEQ);
-    check_int(val, ==, 888);
-    check_ptr(end, ==, NULL);
+        uint8_t const* end = NULL;
+        int64_t val = 888;
 
-    /* empty buffer */
-    err = tr_bencParseInt(buf, buf + 0, &end, &val);
-    check_int(err, ==, EILSEQ);
-    check_int(val, ==, 888);
-    check_ptr(end, ==, NULL);
+        int err = tr_bencParseInt((uint8_t const*)data->input, (uint8_t const*)data->input + data->input_len, &end, &val);
 
-    /* bad number */
-    tr_snprintf((char*)buf, sizeof(buf), "i6z4e");
-    err = tr_bencParseInt(buf, buf + 5, &end, &val);
-    check_int(err, ==, EILSEQ);
-    check_int(val, ==, 888);
-    check_ptr(end, ==, NULL);
-
-    /* negative number */
-    tr_snprintf((char*)buf, sizeof(buf), "i-3e");
-    err = tr_bencParseInt(buf, buf + 4, &end, &val);
-    check_int(err, ==, 0);
-    check_int(val, ==, -3);
-    check_ptr(end, ==, buf + 4);
-
-    /* zero */
-    tr_snprintf((char*)buf, sizeof(buf), "i0e");
-    err = tr_bencParseInt(buf, buf + 4, &end, &val);
-    check_int(err, ==, 0);
-    check_int(val, ==, 0);
-    check_ptr(end, ==, buf + 3);
-
-    /* no leading zeroes allowed */
-    val = 0;
-    end = NULL;
-    tr_snprintf((char*)buf, sizeof(buf), "i04e");
-    err = tr_bencParseInt(buf, buf + 4, &end, &val);
-    check_int(err, ==, EILSEQ);
-    check_int(val, ==, 0);
-    check_ptr(end, ==, NULL);
+        check_int(err, ==, data->expected_err);
+        check_int(val, ==, data->expected_val);
+        check_ptr(end, ==, data->expected_len == TR_BAD_SIZE ? NULL : ((uint8_t const*)data->input + data->expected_len));
+    }
 
     return 0;
 }
 
-static int testStr(void)
+static int testBencStr(void)
 {
-    uint8_t buf[128];
-    int err;
-    int n;
-    uint8_t const* end;
-    uint8_t const* str;
-    size_t len;
+    char* const long_string = tr_strdup_printf("%zu:boat", (size_t)(SIZE_MAX - 2));
 
-    /* string len is designed to overflow */
-    n = tr_snprintf((char*)buf, sizeof(buf), "%zu:boat", (size_t)(SIZE_MAX - 2));
-    err = tr_bencParseStr(buf, buf + n, &end, &str, &len);
-    check_int(err, ==, EILSEQ);
-    check_uint(len, ==, 0);
-    check_ptr(str, ==, NULL);
-    check_ptr(end, ==, NULL);
+    struct test_data
+    {
+        char const* input;
+        size_t input_len;
+        int expected_err;
+        char const* expected_output;
+        size_t expected_output_len;
+        size_t expected_len;
+    }
+    const test_data[] =
+    {
+        { long_string, strlen(long_string), EILSEQ, NULL, 0, TR_BAD_SIZE }, /* string len is designed to overflow */
+        { "4:boat", 6, 0, "boat", 4, 6 }, /* good string */
+        { "4:boat", 5, EILSEQ, NULL, 0, TR_BAD_SIZE }, /* string goes past end of buffer */
+        { "0:", 2, 0, "", 0, 2 }, /* empty string */
+        { "3:boat", 6, 0, "boa", 3, 5 } /* short string */
+    };
 
-    /* good string */
-    n = tr_snprintf((char*)buf, sizeof(buf), "4:boat");
-    err = tr_bencParseStr(buf, buf + n, &end, &str, &len);
-    check_int(err, ==, 0);
-    check_uint(len, ==, 4);
-    check_mem(str, ==, "boat", len);
-    check_ptr(end, ==, buf + 6);
-    str = NULL;
-    end = NULL;
-    len = 0;
+    for (size_t i = 0; i < TR_N_ELEMENTS(test_data); ++i)
+    {
+        struct test_data const* data = &test_data[i];
 
-    /* string goes past end of buffer */
-    err = tr_bencParseStr(buf, buf + (n - 1), &end, &str, &len);
-    check_int(err, ==, EILSEQ);
-    check_uint(len, ==, 0);
-    check_ptr(str, ==, NULL);
-    check_ptr(end, ==, NULL);
+        uint8_t const* end = NULL;
+        uint8_t const* str = NULL;
+        size_t len = 0;
 
-    /* empty string */
-    n = tr_snprintf((char*)buf, sizeof(buf), "0:");
-    err = tr_bencParseStr(buf, buf + n, &end, &str, &len);
-    check_int(err, ==, 0);
-    check_uint(len, ==, 0);
-    check_uint(*str, ==, '\0');
-    check_ptr(end, ==, buf + 2);
-    str = NULL;
-    end = NULL;
-    len = 0;
+        int err = tr_bencParseStr((uint8_t const*)data->input, (uint8_t const*)data->input + data->input_len, &end, &str, &len);
 
-    /* short string */
-    n = tr_snprintf((char*)buf, sizeof(buf), "3:boat");
-    err = tr_bencParseStr(buf, buf + n, &end, &str, &len);
-    check_int(err, ==, 0);
-    check_uint(len, ==, 3);
-    check_mem(str, ==, "boa", len);
-    check_ptr(end, ==, buf + 5);
-    str = NULL;
-    end = NULL;
-    len = 0;
+        check_int(err, ==, data->expected_err);
+        check_uint(len, ==, data->expected_output_len);
+        check_mem(str, ==, data->expected_output, data->expected_output_len);
+        check_ptr(end, ==, data->expected_len == TR_BAD_SIZE ? NULL : (uint8_t const*)data->input + data->expected_len);
+    }
+
+    tr_free(long_string);
+    return 0;
+}
+
+static int testJsonStr(void)
+{
+    struct decode_test_data
+    {
+        char const* input;
+        size_t input_len;
+        int expected_err;
+        char const* expected_output;
+        size_t expected_output_len;
+        size_t expected_len;
+    }
+    const decode_test_data[] =
+    {
+        { "[\"\"]", 4, 0, "", 0, 4 },
+        { "[\"\\u0000\"]", 10, 0, "\0", 1, 10 },
+        { "[\"\\b\\f\\t\\r\\n\\\"\\\\/\"]", 19, 0, "\b\f\t\r\n\"\\/", 8, 19 },
+        { "[\"te\\u0000st\"]", 14, 0, "te\0st", 5, 14 },
+        { "[\"\\u000\"]", 9, 0, "\\u000", 5, 9 },
+        { "[\"\\u00\"]", 8, 0, "\\u00", 4, 8 },
+        { "[\"\\u0\"]", 7, 0, "\\u0", 3, 7 },
+        { "[\"\\u\"]", 6, 0, "\\u", 2, 6 },
+        { "[\"hello\"]", 9, 0, "hello", 5, 9 },
+        { "[\"\\u0068\\u0065\\u006c\\u006c\\u006f\"]", 34, 0, "hello", 5, 34 },
+        { "[\"h\\u0065l\\u006co\"]", 19, 0, "hello", 5, 19 },
+        { "[\"привет\"]", 16, 0, "привет", 12, 16 },
+        { "[\"п\\u0440и\\u0432е\\u0442\"]", 28, 0, "привет", 12, 28 },
+        { "[\"喂\"]", 7, 0, "喂", 3, 7 },
+        { "[\"\\u5582\"]", 10, 0, "喂", 3, 10 },
+        { "[\"😂\"]", 8, 0, "😂", 4, 8 },
+        { "[\"\\ud83d\\ude02\"]", 16, 0, "\x5c\x75\x64\x65\x30\x32", 6, 16 }, /* bad surrogate pair decode :( */
+        /* TODO: extend with error cases (improvements necessary) */
+        // { "[\"\\\"]", 5, 0, NULL, 0, TR_BAD_SIZE }, /* succeeds and returns empty list (???) */
+    };
+
+    for (size_t i = 0; i < TR_N_ELEMENTS(decode_test_data); ++i)
+    {
+        struct decode_test_data const* data = &decode_test_data[i];
+
+        tr_variant val;
+        char const* end = NULL;
+        char const* str = NULL;
+        size_t len = 0;
+
+        int err = tr_variantFromBuf(&val, TR_VARIANT_FMT_JSON, data->input, data->input_len, NULL, &end);
+
+        check_int(err, ==, data->expected_err);
+        check(tr_variantIsList(&val));
+        check_uint(tr_variantListSize(&val), ==, 1);
+        check(tr_variantGetStr(tr_variantListChild(&val, 0), &str, &len));
+        check_mem(str, ==, data->expected_output, data->expected_output_len);
+        check_uint(len, ==, data->expected_output_len);
+        check_ptr(end, ==, data->expected_len == TR_BAD_SIZE ? NULL : (uint8_t const*)data->input + data->expected_len);
+
+        tr_variantFree(&val);
+    }
+
+    struct encode_test_data
+    {
+        char const* input;
+        size_t input_len;
+        char const* expected_output;
+    }
+    const encode_test_data[] =
+    {
+        { "", 0, "[\"\"]\n" },
+        { "\0", 1, "[\"\\u0000\"]\n" },
+        { "\b\f\t\r\n\"\\/", 8, "[\"\\b\\f\\t\\r\\n\\\"\\\\/\"]\n" },
+        { "te\0st", 5, "[\"te\\u0000st\"]\n" },
+        { "hello", 5, "[\"hello\"]\n" },
+        { "привет", 12, "[\"\\u043f\\u0440\\u0438\\u0432\\u0435\\u0442\"]\n" }, /* suboptimal (already utf8) */
+        { "喂", 3, "[\"\\u5582\"]\n" }, /* suboptimal (already utf8) */
+        { "😂", 4, "[\"\\u1f602\"]\n" }, /* suboptimal (already utf8), bad surrogate pair encode :( */
+    };
+
+    for (size_t i = 0; i < TR_N_ELEMENTS(encode_test_data); ++i)
+    {
+        struct encode_test_data const* data = &encode_test_data[i];
+
+        tr_variant val;
+        tr_variantInitList(&val, 1);
+        tr_variantListAddRaw(&val, (uint8_t const*)data->input, data->input_len);
+
+        size_t len = 0;
+        char* str = tr_variantToStr(&val, TR_VARIANT_FMT_JSON_LEAN, &len);
+
+        size_t const expected_output_len = strlen(data->expected_output);
+        check_mem(str, ==, data->expected_output, expected_output_len);
+        check_uint(len, ==, expected_output_len);
+
+        tr_free(str);
+        tr_variantFree(&val);
+    }
 
     return 0;
 }
@@ -584,8 +639,9 @@ int main(void)
 {
     static testFunc const tests[] =
     {
-        testInt,
-        testStr,
+        testBencInt,
+        testBencStr,
+        testJsonStr,
         testParse,
         testJSON,
         testMerge,
