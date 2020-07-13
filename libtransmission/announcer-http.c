@@ -10,6 +10,7 @@
 #include <stdio.h> /* fprintf() */
 #include <string.h> /* strchr(), memcmp(), memcpy() */
 
+#include <libbuffy/buffer.h>
 #include <event2/buffer.h>
 #include <event2/http.h> /* for HTTP_OK */
 
@@ -51,14 +52,13 @@ static char* announce_url_new(tr_session const* session, tr_announce_request con
 {
     char const* str;
     unsigned char const* ipv6;
-    struct evbuffer* buf = evbuffer_new();
+    struct bfy_buffer buf = bfy_buffer_init();
     char escaped_info_hash[SHA_DIGEST_LENGTH * 3 + 1];
 
     tr_http_escape_sha1(escaped_info_hash, req->info_hash);
 
-    evbuffer_expand(buf, 1024);
-
-    evbuffer_add_printf(buf,
+    bfy_buffer_ensure_space(&buf, 1024);
+    bfy_buffer_add_printf(&buf,
         "%s"
         "%c"
         "info_hash=%s"
@@ -84,26 +84,26 @@ static char* announce_url_new(tr_session const* session, tr_announce_request con
 
     if (session->encryptionMode == TR_ENCRYPTION_REQUIRED)
     {
-        evbuffer_add_printf(buf, "&requirecrypto=1");
+        bfy_buffer_add_printf(&buf, "&requirecrypto=1");
     }
 
     if (req->corrupt != 0)
     {
-        evbuffer_add_printf(buf, "&corrupt=%" PRIu64, req->corrupt);
+        bfy_buffer_add_printf(&buf, "&corrupt=%" PRIu64, req->corrupt);
     }
 
     str = get_event_string(req);
 
     if (!tr_str_is_empty(str))
     {
-        evbuffer_add_printf(buf, "&event=%s", str);
+        bfy_buffer_add_printf(&buf, "&event=%s", str);
     }
 
     str = req->tracker_id_str;
 
     if (!tr_str_is_empty(str))
     {
-        evbuffer_add_printf(buf, "&trackerid=%s", str);
+        bfy_buffer_add_printf(&buf, "&trackerid=%s", str);
     }
 
     /* There are two incompatible techniques for announcing an IPv6 address.
@@ -121,11 +121,13 @@ static char* announce_url_new(tr_session const* session, tr_announce_request con
     {
         char ipv6_readable[INET6_ADDRSTRLEN];
         evutil_inet_ntop(AF_INET6, ipv6, ipv6_readable, INET6_ADDRSTRLEN);
-        evbuffer_add_printf(buf, "&ipv6=");
+        bfy_buffer_add_printf(&buf, "&ipv6=");
         tr_http_escape(buf, ipv6_readable, TR_BAD_SIZE, true);
     }
 
-    return evbuffer_free_to_str(buf, NULL);
+    char * str = bfy_buffer_remove_string(&buf);
+    bfy_buffer_destruct(&buf);
+    return str;
 }
 
 static tr_pex* listToPex(tr_variant* peerList, size_t* setme_len)
@@ -487,20 +489,22 @@ static void on_scrape_done(tr_session* session, bool did_connect, bool did_timeo
 static char* scrape_url_new(tr_scrape_request const* req)
 {
     char delimiter;
-    struct evbuffer* buf = evbuffer_new();
+    struct bfy_buffer buf = bfy_buffer_init();
 
-    evbuffer_add_printf(buf, "%s", req->url);
+    bfy_buffer_add_printf(&buf, "%s", req->url);
     delimiter = strchr(req->url, '?') != NULL ? '&' : '?';
 
     for (int i = 0; i < req->info_hash_count; ++i)
     {
         char str[SHA_DIGEST_LENGTH * 3 + 1];
         tr_http_escape_sha1(str, req->info_hash[i]);
-        evbuffer_add_printf(buf, "%cinfo_hash=%s", delimiter, str);
+        bfy_buffer_add_printf(&buf, "%cinfo_hash=%s", delimiter, str);
         delimiter = '&';
     }
 
-    return evbuffer_free_to_str(buf, NULL);
+    char* ret = bfy_buffer_remove_string(&buf);
+    bfy_buffer_destruct(&buf);
+    return ret;
 }
 
 void tr_tracker_http_scrape(tr_session* session, tr_scrape_request const* request, tr_scrape_response_func response_func,

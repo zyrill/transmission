@@ -39,6 +39,8 @@
 #include <iconv.h>
 #endif
 
+#include <libbuffy/buffer.h>
+
 #include <event2/buffer.h>
 #include <event2/event.h>
 
@@ -488,9 +490,11 @@ char* tr_strdup_printf(char const* fmt, ...)
 
 char* tr_strdup_vprintf(char const* fmt, va_list args)
 {
-    struct evbuffer* buf = evbuffer_new();
-    evbuffer_add_vprintf(buf, fmt, args);
-    return evbuffer_free_to_str(buf, NULL);
+    struct bfy_buffer buf = bfy_buffer_init();
+    bfy_buffer_vprintf(&buf, fmt, args);
+    char* str = bfy_buffer_remove_string(&buf, NULL);
+    bfy_buffer_destruct(&buf);
+    return str;
 }
 
 char const* tr_strerror(int i)
@@ -1195,20 +1199,23 @@ void tr_quickfindFirstK(void* base, size_t nmemb, size_t size, tr_voidptr_compar
 static char* strip_non_utf8(char const* in, size_t inlen)
 {
     char const* end;
-    struct evbuffer* buf = evbuffer_new();
+    struct bfy_buffer* buf = bfy_buffer_init();
+    bfy_buffer_ensure_space(&buf, inlen);
 
     while (!tr_utf8_validate(in, inlen, &end))
     {
         int const good_len = end - in;
 
-        evbuffer_add(buf, in, good_len);
+        bfy_buffer_add(&buf, in, good_len);
         inlen -= (good_len + 1);
         in += (good_len + 1);
-        evbuffer_add(buf, "?", 1);
+        bfy_buffer_add_ch(&buf, '?');
     }
 
-    evbuffer_add(buf, in, inlen);
-    return evbuffer_free_to_str(buf, NULL);
+    bfy_buffer_add(&buf, in, inlen);
+    char* str = bfy_buffer_remove_string(&buf, NULL);
+    bfy_buffer_destruct(&buf);
+    return str;
 }
 
 static char* to_utf8(char const* in, size_t inlen)

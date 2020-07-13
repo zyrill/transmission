@@ -12,7 +12,7 @@
 #include <string.h>
 #include <errno.h> /* EILSEQ, EINVAL */
 
-#include <event2/buffer.h> /* evbuffer_add() */
+#include <libbuffy/buffer.h>
 #include <event2/util.h> /* evutil_strtoll() */
 
 #define JSONSL_STATE_USER_FIELDS /* no fields */
@@ -41,8 +41,8 @@ struct json_wrapper_data
     tr_variant* top;
     char const* key;
     size_t keylen;
-    struct evbuffer* keybuf;
-    struct evbuffer* strbuf;
+    struct bfy_buffer keybuf;
+    struct bfy_buffer strbuf;
     char const* source;
     tr_ptrArray stack;
 
@@ -167,11 +167,11 @@ static bool decode_hex_string(char const* in, unsigned int* setme)
     return true;
 }
 
-static char* extract_escaped_string(char const* in, size_t in_len, size_t* len, struct evbuffer* buf)
+static char* extract_escaped_string(char const* in, size_t in_len, size_t* len, struct bfy_buffer* buf)
 {
     char const* const in_end = in + in_len;
 
-    evbuffer_drain(buf, evbuffer_get_length(buf));
+    bfy_buffer_drain_all(buf);
 
     while (in < in_end)
     {
@@ -182,49 +182,49 @@ static char* extract_escaped_string(char const* in, size_t in_len, size_t* len, 
             switch (in[1])
             {
             case 'b':
-                evbuffer_add(buf, "\b", 1);
+                bfy_buffer_add_ch(buf, '\b');
                 in += 2;
                 unescaped = true;
                 break;
 
             case 'f':
-                evbuffer_add(buf, "\f", 1);
+                bfy_buffer_add_ch(buf, '\f');
                 in += 2;
                 unescaped = true;
                 break;
 
             case 'n':
-                evbuffer_add(buf, "\n", 1);
+                bfy_buffer_add_ch(buf, '\n');
                 in += 2;
                 unescaped = true;
                 break;
 
             case 'r':
-                evbuffer_add(buf, "\r", 1);
+                bfy_buffer_add_ch(buf, '\r');
                 in += 2;
                 unescaped = true;
                 break;
 
             case 't':
-                evbuffer_add(buf, "\t", 1);
+                bfy_buffer_add_ch(buf, '\t');
                 in += 2;
                 unescaped = true;
                 break;
 
             case '/':
-                evbuffer_add(buf, "/", 1);
+                bfy_buffer_add_ch(buf, '/');
                 in += 2;
                 unescaped = true;
                 break;
 
             case '"':
-                evbuffer_add(buf, "\"", 1);
+                bfy_buffer_add_ch(buf, '"');
                 in += 2;
                 unescaped = true;
                 break;
 
             case '\\':
-                evbuffer_add(buf, "\\", 1);
+                bfy_buffer_add_ch(buf, '\\');
                 in += 2;
                 unescaped = true;
                 break;
@@ -247,7 +247,7 @@ static char* extract_escaped_string(char const* in, size_t in_len, size_t* len, 
                             if (ConvertUTF32toUTF8(&str32_walk, str32_end, &str8_walk, str8_end, 0) == 0)
                             {
                                 size_t const len = str8_walk - str8_buf;
-                                evbuffer_add(buf, str8_buf, len);
+                                bfy_buffer_add(buf, str8_buf, len);
                                 unescaped = true;
                             }
 
@@ -261,16 +261,15 @@ static char* extract_escaped_string(char const* in, size_t in_len, size_t* len, 
 
         if (!unescaped)
         {
-            evbuffer_add(buf, in, 1);
+            bfy_buffer_add(buf, in, 1);
             ++in;
         }
     }
 
-    *len = evbuffer_get_length(buf);
-    return (char*)evbuffer_pullup(buf, -1);
+    return bfy_buffer_peek_string(buf, len);
 }
 
-static char const* extract_string(jsonsl_t jsn, struct jsonsl_state_st* state, size_t* len, struct evbuffer* buf)
+static char const* extract_string(jsonsl_t jsn, struct jsonsl_state_st* state, size_t* len, struct bfy_buffer* buf)
 {
     char const* ret;
     char const* in_begin;
@@ -375,8 +374,8 @@ int tr_jsonParse(char const* source, void const* vbuf, size_t len, tr_variant* s
     data.top = setme_variant;
     data.stack = TR_PTR_ARRAY_INIT;
     data.source = source;
-    data.keybuf = evbuffer_new();
-    data.strbuf = evbuffer_new();
+    data.keybuf = bfy_buffer_init();
+    data.strbuf = bfy_buffer_init();
     for (int i = 0; i < MAX_DEPTH; ++i)
     {
         data.preallocGuess[i] = 0;
@@ -399,8 +398,8 @@ int tr_jsonParse(char const* source, void const* vbuf, size_t len, tr_variant* s
 
     /* cleanup */
     error = data.error;
-    evbuffer_free(data.keybuf);
-    evbuffer_free(data.strbuf);
+    bfy_buffer_destruct(&data.strbuf);
+    bfy_buffer_destruct(&data.keybuf);
     tr_ptrArrayDestruct(&data.stack, NULL);
     jsonsl_destroy(jsn);
     return error;
@@ -421,7 +420,7 @@ struct jsonWalk
 {
     bool doIndent;
     tr_list* parents;
-    struct evbuffer* out;
+    struct bfy_buffer* out;
 };
 
 static void jsonIndent(struct jsonWalk* data)
@@ -436,7 +435,7 @@ static void jsonIndent(struct jsonWalk* data)
 
     if (data->doIndent)
     {
-        evbuffer_add(data->out, buf, tr_list_size(data->parents) * 4 + 1);
+        bfy_buffer_add(data->out, buf, tr_list_size(data->parents) * 4 + 1);
     }
 }
 
@@ -455,7 +454,7 @@ static void jsonChildFunc(struct jsonWalk* data)
 
                 if (i % 2 == 0)
                 {
-                    evbuffer_add(data->out, ": ", data->doIndent ? 2 : 1);
+                    bfy_buffer_add(data->out, ": ", data->doIndent ? 2 : 1);
                 }
                 else
                 {
@@ -463,7 +462,7 @@ static void jsonChildFunc(struct jsonWalk* data)
 
                     if (!isLast)
                     {
-                        evbuffer_add(data->out, ",", 1);
+                        bfy_buffer_add_ch(data->out, ',');
                         jsonIndent(data);
                     }
                 }
@@ -478,7 +477,7 @@ static void jsonChildFunc(struct jsonWalk* data)
 
                 if (!isLast)
                 {
-                    evbuffer_add(data->out, ",", 1);
+                    bfy_buffer_add_ch(data->out, ',');
                     jsonIndent(data);
                 }
 
@@ -515,7 +514,7 @@ static void jsonPopParent(struct jsonWalk* data)
 static void jsonIntFunc(tr_variant const* val, void* vdata)
 {
     struct jsonWalk* data = vdata;
-    evbuffer_add_printf(data->out, "%" PRId64, val->val.i);
+    bfy_buffer_add_printf(data->out, "%" PRId64, val->val.i);
     jsonChildFunc(data);
 }
 
@@ -525,11 +524,11 @@ static void jsonBoolFunc(tr_variant const* val, void* vdata)
 
     if (val->val.b)
     {
-        evbuffer_add(data->out, "true", 4);
+        bfy_buffer_add(data->out, "true", 4);
     }
     else
     {
-        evbuffer_add(data->out, "false", 5);
+        bfy_buffer_add(data->out, "false", 5);
     }
 
     jsonChildFunc(data);
@@ -541,11 +540,11 @@ static void jsonRealFunc(tr_variant const* val, void* vdata)
 
     if (fabs(val->val.d - (int)val->val.d) < 0.00001)
     {
-        evbuffer_add_printf(data->out, "%d", (int)val->val.d);
+        bfy_buffer_add_printf(data->out, "%d", (int)val->val.d);
     }
     else
     {
-        evbuffer_add_printf(data->out, "%.4f", tr_truncd(val->val.d, 4));
+        bfy_buffer_add_printf(data->out, "%.4f", tr_truncd(val->val.d, 4));
     }
 
     jsonChildFunc(data);
@@ -556,7 +555,6 @@ static void jsonStringFunc(tr_variant const* val, void* vdata)
     char* out;
     char* outwalk;
     char* outend;
-    struct evbuffer_iovec vec[1];
     struct jsonWalk* data = vdata;
     char const* str;
     size_t len;
@@ -567,9 +565,9 @@ static void jsonStringFunc(tr_variant const* val, void* vdata)
     it = (unsigned char const*)str;
     end = it + len;
 
-    evbuffer_reserve_space(data->out, len * 4, vec, 1);
-    out = vec[0].iov_base;
-    outend = out + vec[0].iov_len;
+    struct bfy_iovec io = bfy_buffer_reserve_space(data->out, len*4);
+    out = io.iov_base;
+    outend = out + io.iov_len;
 
     outwalk = out;
     *outwalk++ = '"';
@@ -637,8 +635,7 @@ static void jsonStringFunc(tr_variant const* val, void* vdata)
     }
 
     *outwalk++ = '"';
-    vec[0].iov_len = outwalk - out;
-    evbuffer_commit_space(data->out, vec, 1);
+    bfy_buffer_commit_space(data->out, outwalk - out);
 
     jsonChildFunc(data);
 }
@@ -648,7 +645,7 @@ static void jsonDictBeginFunc(tr_variant const* val, void* vdata)
     struct jsonWalk* data = vdata;
 
     jsonPushParent(data, val);
-    evbuffer_add(data->out, "{", 1);
+    bfy_buffer_add_ch(data->out, '{');
 
     if (val->val.l.count != 0)
     {
@@ -662,7 +659,7 @@ static void jsonListBeginFunc(tr_variant const* val, void* vdata)
     struct jsonWalk* data = vdata;
 
     jsonPushParent(data, val);
-    evbuffer_add(data->out, "[", 1);
+    bfy_buffer_add_ch(data->out, '[');
 
     if (nChildren != 0)
     {
@@ -684,11 +681,11 @@ static void jsonContainerEndFunc(tr_variant const* val, void* vdata)
 
     if (tr_variantIsDict(val))
     {
-        evbuffer_add(data->out, "}", 1);
+        bfy_buffer_add_ch(data->out, '}');
     }
     else /* list */
     {
-        evbuffer_add(data->out, "]", 1);
+        bfy_buffer_add_ch(data->out, ']');
     }
 
     jsonChildFunc(data);
@@ -705,7 +702,7 @@ static struct VariantWalkFuncs const walk_funcs =
     jsonContainerEndFunc
 };
 
-void tr_variantToBufJson(tr_variant const* top, struct evbuffer* buf, bool lean)
+void tr_variantToBufJson(tr_variant const* top, struct bfy_buffer* buf, bool lean)
 {
     struct jsonWalk data;
 
@@ -715,8 +712,8 @@ void tr_variantToBufJson(tr_variant const* top, struct evbuffer* buf, bool lean)
 
     tr_variantWalk(top, &walk_funcs, &data, true);
 
-    if (evbuffer_get_length(buf) != 0)
+    if (bfy_buffer_get_content_len(buf) != 0)
     {
-        evbuffer_add_printf(buf, "\n");
+        bfy_buffer_add_ch(buf, '\n');
     }
 }

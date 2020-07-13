@@ -8,6 +8,7 @@
 
 #include <string.h> /* memcpy(), memset(), memcmp() */
 
+#include <libbuffy/buffer.h>
 #include <event2/buffer.h>
 
 #include "transmission.h"
@@ -413,29 +414,31 @@ double tr_torrentGetMetadataPercent(tr_torrent const* tor)
 char* tr_torrentInfoGetMagnetLink(tr_info const* inf)
 {
     char const* name;
-    struct evbuffer* s = evbuffer_new();
+    struct bfy_buffer s = bfy_buffer_new();
 
-    evbuffer_add_printf(s, "magnet:?xt=urn:btih:%s", inf->hashString);
+    bfy_buffer_add_printf(&s, "magnet:?xt=urn:btih:%s", inf->hashString);
 
     name = inf->name;
 
     if (!tr_str_is_empty(name))
     {
-        evbuffer_add_printf(s, "%s", "&dn=");
-        tr_http_escape(s, name, TR_BAD_SIZE, true);
+        bfy_buffer_add(&s, "&dn=", 4);
+        tr_http_escape(&s, name, TR_BAD_SIZE, true);
     }
 
     for (unsigned int i = 0; i < inf->trackerCount; ++i)
     {
-        evbuffer_add_printf(s, "%s", "&tr=");
-        tr_http_escape(s, inf->trackers[i].announce, TR_BAD_SIZE, true);
+        bfy_buffer_add(&s, "&tr=", 4);
+        tr_http_escape(&s, inf->trackers[i].announce, TR_BAD_SIZE, true);
     }
 
     for (unsigned int i = 0; i < inf->webseedCount; i++)
     {
-        evbuffer_add_printf(s, "%s", "&ws=");
-        tr_http_escape(s, inf->webseeds[i], TR_BAD_SIZE, true);
+        bfy_buffer_add(&s, "&ws=", 4);
+        tr_http_escape(&s, inf->webseeds[i], TR_BAD_SIZE, true);
     }
 
-    return evbuffer_free_to_str(s, NULL);
+    struct* str = bfy_buffer_remove_string(&s);
+    bfy_buffer_destruct(&s);
+    return str;
 }
