@@ -10,7 +10,7 @@
 #include <stdio.h> /* fprintf() */
 #include <string.h> /* strchr(), memcmp(), memcpy() */
 
-#include <libbuffy/buffer.h>
+#include <buffy/buffer.h>
 #include <event2/buffer.h>
 #include <event2/http.h> /* for HTTP_OK */
 
@@ -122,12 +122,12 @@ static char* announce_url_new(tr_session const* session, tr_announce_request con
         char ipv6_readable[INET6_ADDRSTRLEN];
         evutil_inet_ntop(AF_INET6, ipv6, ipv6_readable, INET6_ADDRSTRLEN);
         bfy_buffer_add_printf(&buf, "&ipv6=");
-        tr_http_escape(buf, ipv6_readable, TR_BAD_SIZE, true);
+        tr_http_escape(&buf, ipv6_readable, TR_BAD_SIZE, true);
     }
 
-    char * str = bfy_buffer_remove_string(&buf);
+    char * ret = bfy_buffer_remove_string(&buf, NULL);
     bfy_buffer_destruct(&buf);
-    return str;
+    return ret;
 }
 
 static tr_pex* listToPex(tr_variant* peerList, size_t* setme_len)
@@ -502,7 +502,7 @@ static char* scrape_url_new(tr_scrape_request const* req)
         delimiter = '&';
     }
 
-    char* ret = bfy_buffer_remove_string(&buf);
+    char* ret = bfy_buffer_remove_string(&buf, NULL);
     bfy_buffer_destruct(&buf);
     return ret;
 }

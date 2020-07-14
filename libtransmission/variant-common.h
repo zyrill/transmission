@@ -27,9 +27,9 @@ struct VariantWalkFuncs
 
 void tr_variantWalk(tr_variant const* top, struct VariantWalkFuncs const* walkFuncs, void* user_data, bool sort_dicts);
 
-void tr_variantToBufJson(tr_variant const* top, struct evbuffer* buf, bool lean);
+void tr_variantToBufJson(tr_variant const* top, struct bfy_buffer* buf, bool lean);
 
-void tr_variantToBufBenc(tr_variant const* top, struct evbuffer* buf);
+void tr_variantToBufBenc(tr_variant const* top, struct bfy_buffer* buf);
 
 void tr_variantInit(tr_variant* v, char type);
 

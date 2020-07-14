@@ -8,6 +8,7 @@
 
 #include <string.h> /* strlen() */
 
+#include <buffy/buffer.h>
 #include <event2/buffer.h>
 #include <event2/event.h>
 
@@ -445,19 +446,21 @@ static void web_response_func(tr_session* session, bool did_connect UNUSED, bool
     }
 }
 
-static struct evbuffer* make_url(tr_webseed* w, tr_file const* file)
+static char* make_url(tr_webseed* w, tr_file const* file)
 {
-    struct evbuffer* buf = evbuffer_new();
+    struct bfy_buffer buf = bfy_buffer_init();
 
-    evbuffer_add(buf, w->base_url, w->base_url_len);
+    bfy_buffer_add(&buf, w->base_url, w->base_url_len);
 
     /* if url ends with a '/', add the torrent name */
     if (w->base_url[w->base_url_len - 1] == '/' && file->name != NULL)
     {
-        tr_http_escape(buf, file->name, strlen(file->name), false);
+        tr_http_escape(&buf, file->name, strlen(file->name), false);
     }
 
-    return buf;
+    char* url = bfy_buffer_remove_string(&buf, NULL);
+    bfy_buffer_destruct(&buf);
+    return url;
 }
 
 static void task_request_next_chunk(struct tr_webseed_task* t)
@@ -488,7 +491,7 @@ static void task_request_next_chunk(struct tr_webseed_task* t)
 
         if (urls[file_index] == NULL)
         {
-            urls[file_index] = evbuffer_free_to_str(make_url(t->webseed, file), NULL);
+            urls[file_index] = make_url(t->webseed, file);
         }
 
         tr_snprintf(range, sizeof(range), "%" PRIu64 "-%" PRIu64, file_offset, file_offset + this_pass - 1);

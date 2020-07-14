@@ -11,6 +11,7 @@
 
 #include <zlib.h>
 
+#include <buffy/buffer.h>
 #include <event2/buffer.h>
 #include <event2/event.h>
 #include <event2/http.h>
@@ -294,8 +295,9 @@ static char const* mimetype_guess(char const* path)
     return "application/octet-stream";
 }
 
-static void add_response(struct evhttp_request* req, struct tr_rpc_server* server, struct evbuffer* out,
-    struct evbuffer* content)
+static void add_response(struct evhttp_request* req, struct tr_rpc_server* server,
+                         struct bfy_buffer* out,
+                         struct bfy_buffer* content)
 {
     char const* key = "Accept-Encoding";
     char const* encoding = evhttp_find_header(req->input_headers, key);
@@ -303,14 +305,14 @@ static void add_response(struct evhttp_request* req, struct tr_rpc_server* serve
 
     if (!do_compress)
     {
-        evbuffer_add_buffer(out, content);
+        bfy_buffer_add_buffer(out, content);
     }
     else
     {
         int state;
-        struct evbuffer_iovec iovec[1];
-        void* content_ptr = evbuffer_pullup(content, -1);
-        size_t const content_len = evbuffer_get_length(content);
+        struct bfy_iovec io;
+        void* content_ptr = bfy_buffer_make_all_contiguous(content);
+        size_t const content_len = bfy_buffer_get_content_len(content);
 
         if (!server->isStreamInitialized)
         {
@@ -337,14 +339,14 @@ static void add_response(struct evhttp_request* req, struct tr_rpc_server* serve
         /* allocate space for the raw data and call deflate() just once --
          * we won't use the deflated data if it's longer than the raw data,
          * so it's okay to let deflate() run out of output buffer space */
-        evbuffer_reserve_space(out, content_len, iovec, 1);
-        server->stream.next_out = iovec[0].iov_base;
-        server->stream.avail_out = iovec[0].iov_len;
+        io = bfy_buffer_reserve_space(out, content_len);
+        server->stream.next_out = io.iov_base;
+        server->stream.avail_out = io.iov_len;
         state = deflate(&server->stream, Z_FINISH);
 
         if (state == Z_STREAM_END)
         {
-            iovec[0].iov_len -= server->stream.avail_out;
+            io.iov_len -= server->stream.avail_out;
 
 #if 0
 
@@ -357,11 +359,11 @@ static void add_response(struct evhttp_request* req, struct tr_rpc_server* serve
         }
         else
         {
-            memcpy(iovec[0].iov_base, content_ptr, content_len);
-            iovec[0].iov_len = content_len;
+            memcpy(io.iov_base, content_ptr, content_len);
+            io.iov_len = content_len;
         }
 
-        evbuffer_commit_space(out, iovec, 1);
+        bfy_buffer_commit_space(out, io.iov_len);
         deflateReset(&server->stream);
     }
 }
@@ -374,11 +376,6 @@ static void add_time_header(struct evkeyvalq* headers, char const* key, time_t v
     struct tm tm = *gmtime(&value);
     strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
     evhttp_add_header(headers, key, buf);
-}
-
-static void evbuffer_ref_cleanup_tr_free(void const* data UNUSED, size_t datalen UNUSED, void* extra)
-{
-    tr_free(extra);
 }
 
 static void serve_file(struct evhttp_request* req, struct tr_rpc_server* server, char const* filename)
@@ -406,22 +403,20 @@ static void serve_file(struct evhttp_request* req, struct tr_rpc_server* server,
         }
         else
         {
-            struct evbuffer* content;
-            struct evbuffer* out;
             time_t const now = tr_time();
+            struct bfy_buffer content = bfy_buffer_init();
+            struct bfy_buffer out = bfy_buffer_init();
 
-            content = evbuffer_new();
-            evbuffer_add_reference(content, file, file_len, evbuffer_ref_cleanup_tr_free, file);
+            bfy_buffer_add_reference(&content, file, file_len, (bfy_unref_cb*)tr_free, NULL);
 
-            out = evbuffer_new();
             evhttp_add_header(req->output_headers, "Content-Type", mimetype_guess(filename));
             add_time_header(req->output_headers, "Date", now);
             add_time_header(req->output_headers, "Expires", now + (24 * 60 * 60));
-            add_response(req, server, out, content);
-            evhttp_send_reply(req, HTTP_OK, "OK", out);
+            add_response(req, server, &out, &content);
+            evhttp_send_reply(req, HTTP_OK, "OK", &out);
 
-            evbuffer_free(out);
-            evbuffer_free(content);
+            bfy_buffer_destruct(&out);
+            bfy_buffer_destruct(&content);
         }
     }
 }
@@ -479,15 +474,15 @@ struct rpc_response_data
 static void rpc_response_func(tr_session* session UNUSED, tr_variant* response, void* user_data)
 {
     struct rpc_response_data* data = user_data;
-    struct evbuffer* response_buf = tr_variantToBuf(response, TR_VARIANT_FMT_JSON_LEAN);
-    struct evbuffer* buf = evbuffer_new();
+    struct bfy_buffer* response_buf = tr_variantToBuf(response, TR_VARIANT_FMT_JSON_LEAN);
+    struct bfy_buffer buf = bfy_buffer_init();
 
-    add_response(data->req, data->server, buf, response_buf);
+    add_response(data->req, data->server, &buf, response_buf);
     evhttp_add_header(data->req->output_headers, "Content-Type", "application/json; charset=UTF-8");
-    evhttp_send_reply(data->req, HTTP_OK, "OK", buf);
+    evhttp_send_reply(data->req, HTTP_OK, "OK", &buf);
 
-    evbuffer_free(buf);
-    evbuffer_free(response_buf);
+    bfy_buffer_destruct(&buf);
+    bfy_buffer_free(response_buf);
     tr_free(data);
 }
 

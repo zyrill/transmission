@@ -12,7 +12,7 @@
 #include <string.h>
 #include <errno.h> /* EILSEQ, EINVAL */
 
-#include <libbuffy/buffer.h>
+#include <buffy/buffer.h>
 #include <event2/util.h> /* evutil_strtoll() */
 
 #define JSONSL_STATE_USER_FIELDS /* no fields */
@@ -167,7 +167,7 @@ static bool decode_hex_string(char const* in, unsigned int* setme)
     return true;
 }
 
-static char* extract_escaped_string(char const* in, size_t in_len, size_t* len, struct bfy_buffer* buf)
+static char const* extract_escaped_string(char const* in, size_t in_len, size_t* len, struct bfy_buffer* buf)
 {
     char const* const in_end = in + in_len;
 
@@ -309,14 +309,14 @@ static void action_callback_POP(jsonsl_t jsn, jsonsl_action_t action UNUSED, str
     if (state->type == JSONSL_T_STRING)
     {
         size_t len;
-        char const* str = extract_string(jsn, state, &len, data->strbuf);
+        char const* str = extract_string(jsn, state, &len, &data->strbuf);
         tr_variantInitStr(get_node(jsn), str, len);
         data->has_content = true;
     }
     else if (state->type == JSONSL_T_HKEY)
     {
         data->has_content = true;
-        data->key = extract_string(jsn, state, &data->keylen, data->keybuf);
+        data->key = extract_string(jsn, state, &data->keylen, &data->keybuf);
     }
     else if (state->type == JSONSL_T_LIST || state->type == JSONSL_T_OBJECT)
     {

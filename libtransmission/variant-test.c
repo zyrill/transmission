@@ -10,7 +10,7 @@
 #include <errno.h> /* EILSEQ */
 #include <string.h> /* strlen(), strncmp() */
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 
 #define __LIBTRANSMISSION_VARIANT_MODULE__
 
@@ -338,11 +338,11 @@ static int testJSONSnippet(char const* benc_str, char const* expected)
 {
     tr_variant top;
     char* serialized;
-    struct evbuffer* buf;
+    struct bfy_buffer* buf;
 
     tr_variantFromBenc(&top, benc_str, strlen(benc_str));
     buf = tr_variantToBuf(&top, TR_VARIANT_FMT_JSON);
-    serialized = (char*)evbuffer_pullup(buf, -1);
+    serialized = bfy_buffer_remove_string(buf, NULL);
     stripWhitespace(serialized);
 #if 0
     fprintf(stderr, "benc: %s\n", benc_str);
@@ -351,7 +351,8 @@ static int testJSONSnippet(char const* benc_str, char const* expected)
 #endif
     check_str(serialized, ==, expected);
     tr_variantFree(&top);
-    evbuffer_free(buf);
+    tr_free(serialized);
+    bfy_buffer_free(buf);
     return 0;
 }
 

@@ -29,6 +29,7 @@
 #include <xlocale.h>
 #endif
 
+#include <buffy/buffer.h>
 #include <event2/buffer.h>
 
 #define __LIBTRANSMISSION_VARIANT_MODULE__
@@ -1122,15 +1123,15 @@ void tr_variantMergeDicts(tr_variant* target, tr_variant const* source)
 ****
 ***/
 
-struct evbuffer* tr_variantToBuf(tr_variant const* v, tr_variant_fmt fmt)
+struct bfy_buffer* tr_variantToBuf(tr_variant const* v, tr_variant_fmt fmt)
 {
     struct locale_context locale_ctx;
-    struct evbuffer* buf = evbuffer_new();
+    struct bfy_buffer* buf = bfy_buffer_new();
 
     /* parse with LC_NUMERIC="C" to ensure a "." decimal separator */
     use_numeric_locale(&locale_ctx, "C");
 
-    evbuffer_expand(buf, 4096); /* alloc a little memory to start off with */
+    bfy_buffer_ensure_space(buf, 4096); /* alloc a little memory to start off with */
 
     switch (fmt)
     {
@@ -1154,8 +1155,10 @@ struct evbuffer* tr_variantToBuf(tr_variant const* v, tr_variant_fmt fmt)
 
 char* tr_variantToStr(tr_variant const* v, tr_variant_fmt fmt, size_t* len)
 {
-    struct evbuffer* buf = tr_variantToBuf(v, fmt);
-    return evbuffer_free_to_str(buf, len);
+    struct bfy_buffer* buf = tr_variantToBuf(v, fmt);
+    char* str = bfy_buffer_remove_string(buf, len);
+    bfy_buffer_free(buf);
+    return str;
 }
 
 int tr_variantToFile(tr_variant const* v, tr_variant_fmt fmt, char const* filename)
@@ -1183,9 +1186,9 @@ int tr_variantToFile(tr_variant const* v, tr_variant_fmt fmt, char const* filena
 
         /* save the variant to a temporary file */
         {
-            struct evbuffer* buf = tr_variantToBuf(v, fmt);
-            char const* walk = (char const*)evbuffer_pullup(buf, -1);
-            nleft = evbuffer_get_length(buf);
+            struct bfy_buffer* buf = tr_variantToBuf(v, fmt);
+            char const* walk = bfy_buffer_make_all_contiguous(buf);
+            nleft = bfy_buffer_get_content_len(buf);
 
             while (nleft > 0)
             {
@@ -1201,7 +1204,7 @@ int tr_variantToFile(tr_variant const* v, tr_variant_fmt fmt, char const* filena
                 walk += n;
             }
 
-            evbuffer_free(buf);
+            bfy_buffer_free(buf);
         }
 
         tr_sys_file_close(fd, NULL);

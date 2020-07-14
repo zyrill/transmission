@@ -11,7 +11,7 @@
 #include <stdlib.h> /* strtoul() */
 #include <string.h> /* strlen(), memchr() */
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 
 #include "ConvertUTF.h"
 
@@ -320,34 +320,34 @@ int tr_variantParseBenc(void const* buf_in, void const* bufend_in, tr_variant* t
 *****
 ****/
 
-static void saveIntFunc(tr_variant const* val, void* evbuf)
+static void saveIntFunc(tr_variant const* val, void* buf)
 {
-    evbuffer_add_printf(evbuf, "i%" PRId64 "e", val->val.i);
+    bfy_buffer_add_printf(buf, "i%" PRId64 "e", val->val.i);
 }
 
-static void saveBoolFunc(tr_variant const* val, void* evbuf)
+static void saveBoolFunc(tr_variant const* val, void* buf)
 {
     if (val->val.b)
     {
-        evbuffer_add(evbuf, "i1e", 3);
+        bfy_buffer_add(buf, "i1e", 3);
     }
     else
     {
-        evbuffer_add(evbuf, "i0e", 3);
+        bfy_buffer_add(buf, "i0e", 3);
     }
 }
 
-static void saveRealFunc(tr_variant const* val, void* evbuf)
+static void saveRealFunc(tr_variant const* val, void* buf)
 {
     int len;
-    char buf[128];
+    char tmp[128];
 
-    len = tr_snprintf(buf, sizeof(buf), "%f", val->val.d);
-    evbuffer_add_printf(evbuf, "%d:", len);
-    evbuffer_add(evbuf, buf, len);
+    len = tr_snprintf(tmp, sizeof(tmp), "%f", val->val.d);
+    bfy_buffer_add_printf(buf, "%d:", len);
+    bfy_buffer_add(buf, tmp, len);
 }
 
-static void saveStringFunc(tr_variant const* v, void* evbuf)
+static void saveStringFunc(tr_variant const* v, void* buf)
 {
     size_t len;
     char const* str;
@@ -357,23 +357,23 @@ static void saveStringFunc(tr_variant const* v, void* evbuf)
         str = NULL;
     }
 
-    evbuffer_add_printf(evbuf, "%zu:", len);
-    evbuffer_add(evbuf, str, len);
+    bfy_buffer_add_printf(buf, "%zu:", len);
+    bfy_buffer_add(buf, str, len);
 }
 
-static void saveDictBeginFunc(tr_variant const* val UNUSED, void* evbuf)
+static void saveDictBeginFunc(tr_variant const* val UNUSED, void* buf)
 {
-    evbuffer_add(evbuf, "d", 1);
+    bfy_buffer_add_ch(buf, 'd');
 }
 
-static void saveListBeginFunc(tr_variant const* val UNUSED, void* evbuf)
+static void saveListBeginFunc(tr_variant const* val UNUSED, void* buf)
 {
-    evbuffer_add(evbuf, "l", 1);
+    bfy_buffer_add_ch(buf, 'l');
 }
 
-static void saveContainerEndFunc(tr_variant const* val UNUSED, void* evbuf)
+static void saveContainerEndFunc(tr_variant const* val UNUSED, void* buf)
 {
-    evbuffer_add(evbuf, "e", 1);
+    bfy_buffer_add_ch(buf, 'e');
 }
 
 static struct VariantWalkFuncs const walk_funcs =
@@ -387,7 +387,7 @@ static struct VariantWalkFuncs const walk_funcs =
     saveContainerEndFunc
 };
 
-void tr_variantToBufBenc(tr_variant const* top, struct evbuffer* buf)
+void tr_variantToBufBenc(tr_variant const* top, struct bfy_buffer* buf)
 {
     tr_variantWalk(top, &walk_funcs, buf, true);
 }

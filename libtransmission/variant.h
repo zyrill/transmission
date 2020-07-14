@@ -16,7 +16,7 @@ extern "C"
 #include <inttypes.h> /* for int64_t */
 #include "quark.h"
 
-struct evbuffer;
+struct bfy_buffer;
 
 struct tr_error;
 
@@ -117,7 +117,7 @@ int tr_variantToFile(tr_variant const* variant, tr_variant_fmt fmt, char const* 
 
 char* tr_variantToStr(tr_variant const* variant, tr_variant_fmt fmt, size_t* len);
 
-struct evbuffer* tr_variantToBuf(tr_variant const* variant, tr_variant_fmt fmt);
+struct bfy_buffer* tr_variantToBuf(tr_variant const* variant, tr_variant_fmt fmt);
 
 /* TR_VARIANT_FMT_JSON_LEAN and TR_VARIANT_FMT_JSON are equivalent here. */
 bool tr_variantFromFile(tr_variant* setme, tr_variant_fmt fmt, char const* filename, struct tr_error** error);

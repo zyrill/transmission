@@ -45,6 +45,7 @@ struct tr_web_task* tr_webRun(tr_session* session, char const* url, tr_web_done_
 struct tr_web_task* tr_webRunWithCookies(tr_session* session, char const* url, char const* cookies, tr_web_done_func done_func,
     void* done_func_user_data);
 
+struct bfy_buffer;
 struct evbuffer;
 
 struct tr_web_task* tr_webRunWebseed(tr_torrent* tor, char const* url, char const* range, tr_web_done_func done_func,
@@ -52,7 +53,7 @@ struct tr_web_task* tr_webRunWebseed(tr_torrent* tor, char const* url, char cons
 
 void tr_webGetTaskInfo(struct tr_web_task* task, tr_web_task_info info, void* dst);
 
-void tr_http_escape(struct evbuffer* out, char const* str, size_t len, bool escape_slashes);
+void tr_http_escape(struct bfy_buffer* out, char const* str, size_t len, bool escape_slashes);
 
 void tr_http_escape_sha1(char* out, uint8_t const* sha1_digest);
 

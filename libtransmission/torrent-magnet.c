@@ -8,7 +8,7 @@
 
 #include <string.h> /* memcpy(), memset(), memcmp() */
 
-#include <libbuffy/buffer.h>
+#include <buffy/buffer.h>
 #include <event2/buffer.h>
 
 #include "transmission.h"
@@ -414,7 +414,7 @@ double tr_torrentGetMetadataPercent(tr_torrent const* tor)
 char* tr_torrentInfoGetMagnetLink(tr_info const* inf)
 {
     char const* name;
-    struct bfy_buffer s = bfy_buffer_new();
+    struct bfy_buffer s = bfy_buffer_init();
 
     bfy_buffer_add_printf(&s, "magnet:?xt=urn:btih:%s", inf->hashString);
 
@@ -438,7 +438,7 @@ char* tr_torrentInfoGetMagnetLink(tr_info const* inf)
         tr_http_escape(&s, inf->webseeds[i], TR_BAD_SIZE, true);
     }
 
-    struct* str = bfy_buffer_remove_string(&s);
+    char* str = bfy_buffer_remove_string(&s, NULL);
     bfy_buffer_destruct(&s);
     return str;
 }

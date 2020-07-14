@@ -18,6 +18,7 @@
 
 #include <curl/curl.h>
 
+#include <buffy/buffer.h>
 #include <event2/buffer.h>
 
 #include "transmission.h"
@@ -777,7 +778,17 @@ char const* tr_webGetResponseStr(long code)
     }
 }
 
-void tr_http_escape(struct evbuffer* out, char const* str, size_t len, bool escape_slashes)
+static bool is_alnum(uint8_t ch)
+{
+    return ('0' <= ch && ch <= '9') || ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z');
+}
+
+static bool is_rfc2396_alnum(uint8_t ch)
+{
+    return is_alnum(ch) || ch == '.' || ch == '-' || ch == '_' || ch == '~';
+}
+
+void tr_http_escape(struct bfy_buffer* out, char const* str, size_t len, bool escape_slashes)
 {
     if (str == NULL)
     {
@@ -789,18 +800,25 @@ void tr_http_escape(struct evbuffer* out, char const* str, size_t len, bool esca
         len = strlen(str);
     }
 
+    struct bfy_iovec const io = bfy_buffer_reserve_space(out, len*4);
+    char* walk = io.iov_base;
+
     for (char const* end = str + len; str != end; ++str)
     {
-        if (*str == ',' || *str == '-' || *str == '.' || ('0' <= *str && *str <= '9') || ('A' <= *str && *str <= 'Z') ||
-            ('a' <= *str && *str <= 'z') || (*str == '/' && !escape_slashes))
+        if (is_alnum(*str) || *str == ',' || *str == '-' || *str == '.' || (*str == '/' && !escape_slashes))
         {
-            evbuffer_add_printf(out, "%c", *str);
+            *walk++ = *str;
         }
         else
         {
-            evbuffer_add_printf(out, "%%%02X", (unsigned)(*str & 0xFF));
+            char tmp[8];
+            int const len = tr_snprintf(tmp, sizeof(tmp), "%%%02X", (unsigned)(*str & 0xFF));
+            memcpy(walk, tmp, len);
+            walk += len;
         }
     }
+
+    bfy_buffer_commit_space(out, walk- (char const*)io.iov_base);
 }
 
 char* tr_http_unescape(char const* str, size_t len)
@@ -809,12 +827,6 @@ char* tr_http_unescape(char const* str, size_t len)
     char* ret = tr_strdup(tmp);
     curl_free(tmp);
     return ret;
-}
-
-static bool is_rfc2396_alnum(uint8_t ch)
-{
-    return ('0' <= ch && ch <= '9') || ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ch == '.' || ch == '-' ||
-        ch == '_' || ch == '~';
 }
 
 void tr_http_escape_sha1(char* out, uint8_t const* sha1_digest)
