@@ -25,7 +25,7 @@
 #include "peer-socket.h"
 #include "utils.h" /* tr_time() */
 
-struct evbuffer;
+struct bfy_buffer;
 struct tr_bandwidth;
 struct tr_datatype;
 struct tr_peerIo;
@@ -96,8 +96,8 @@ typedef struct tr_peerIo
     struct tr_bandwidth bandwidth;
     tr_crypto crypto;
 
-    struct evbuffer* inbuf;
-    struct evbuffer* outbuf;
+    struct bfy_buffer* inbuf;
+    struct bfy_buffer* outbuf;
     struct tr_datatype* outbuf_datatypes;
 
     struct event* event_read;
@@ -234,7 +234,7 @@ void tr_peerIoClear(tr_peerIo* io);
 
 void tr_peerIoWriteBytes(tr_peerIo* io, void const* writeme, size_t writemeLen, bool isPieceData);
 
-void tr_peerIoWriteBuf(tr_peerIo* io, struct evbuffer* buf, bool isPieceData);
+void tr_peerIoWriteBuf(tr_peerIo* io, struct bfy_buffer* buf, bool isPieceData);
 
 /**
 ***
@@ -252,40 +252,20 @@ static inline bool tr_peerIoIsEncrypted(tr_peerIo const* io)
     return io != NULL && io->encryption_type == PEER_ENCRYPTION_RC4;
 }
 
-void evbuffer_add_uint8(struct evbuffer* outbuf, uint8_t byte);
-void evbuffer_add_uint16(struct evbuffer* outbuf, uint16_t hs);
-void evbuffer_add_uint32(struct evbuffer* outbuf, uint32_t hl);
-void evbuffer_add_uint64(struct evbuffer* outbuf, uint64_t hll);
+void tr_peerIoReadBytesToBuf(tr_peerIo* io, struct bfy_buffer* inbuf, struct bfy_buffer* outbuf, size_t byteCount);
 
-static inline void evbuffer_add_hton_16(struct evbuffer* buf, uint16_t val)
-{
-    evbuffer_add_uint16(buf, val);
-}
+void tr_peerIoReadBytes(tr_peerIo* io, struct bfy_buffer* inbuf, void* bytes, size_t byteCount);
 
-static inline void evbuffer_add_hton_32(struct evbuffer* buf, uint32_t val)
-{
-    evbuffer_add_uint32(buf, val);
-}
-
-static inline void evbuffer_add_hton_64(struct evbuffer* buf, uint64_t val)
-{
-    evbuffer_add_uint64(buf, val);
-}
-
-void tr_peerIoReadBytesToBuf(tr_peerIo* io, struct evbuffer* inbuf, struct evbuffer* outbuf, size_t byteCount);
-
-void tr_peerIoReadBytes(tr_peerIo* io, struct evbuffer* inbuf, void* bytes, size_t byteCount);
-
-static inline void tr_peerIoReadUint8(tr_peerIo* io, struct evbuffer* inbuf, uint8_t* setme)
+static inline void tr_peerIoReadUint8(tr_peerIo* io, struct bfy_buffer* inbuf, uint8_t* setme)
 {
     tr_peerIoReadBytes(io, inbuf, setme, sizeof(uint8_t));
 }
 
-void tr_peerIoReadUint16(tr_peerIo* io, struct evbuffer* inbuf, uint16_t* setme);
+void tr_peerIoReadUint16(tr_peerIo* io, struct bfy_buffer* inbuf, uint16_t* setme);
 
-void tr_peerIoReadUint32(tr_peerIo* io, struct evbuffer* inbuf, uint32_t* setme);
+void tr_peerIoReadUint32(tr_peerIo* io, struct bfy_buffer* inbuf, uint32_t* setme);
 
-void tr_peerIoDrain(tr_peerIo* io, struct evbuffer* inbuf, size_t byteCount);
+void tr_peerIoDrain(tr_peerIo* io, struct bfy_buffer* inbuf, size_t byteCount);
 
 /**
 ***
@@ -326,7 +306,7 @@ int tr_peerIoFlushOutgoingProtocolMsgs(tr_peerIo* io);
 ***
 **/
 
-static inline struct evbuffer* tr_peerIoGetReadBuffer(tr_peerIo* io)
+static inline struct bfy_buffer* tr_peerIoGetReadBuffer(tr_peerIo* io)
 {
     return io->inbuf;
 }

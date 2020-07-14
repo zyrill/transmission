@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <string.h> /* strcmp(), strlen(), strncmp() */
 
+#include <buffy/buffer.h>
 #include <event2/buffer.h>
 #include <event2/event.h>
 
@@ -234,9 +235,9 @@ static handshake_parse_err_t parseHandshake(tr_handshake* handshake, struct evbu
     tr_torrent* tor;
     uint8_t peer_id[PEER_ID_LEN];
 
-    dbgmsg(handshake, "payload: need %d, got %zu", HANDSHAKE_SIZE, evbuffer_get_length(inbuf));
+    dbgmsg(handshake, "payload: need %d, got %zu", HANDSHAKE_SIZE, bfy_buffer_get_content_len(inbuf));
 
-    if (evbuffer_get_length(inbuf) < HANDSHAKE_SIZE)
+    if (bfy_buffer_get_content_len(inbuf) < HANDSHAKE_SIZE)
     {
         return HANDSHAKE_ENCRYPTION_WRONG;
     }
@@ -385,7 +386,7 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
     struct evbuffer* outbuf;
     size_t needlen = HANDSHAKE_NAME_LEN;
 
-    if (evbuffer_get_length(inbuf) < needlen)
+    if (bfy_buffer_get_content_len(inbuf) < needlen)
     {
         return READ_LATER;
     }
@@ -396,7 +397,7 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
     {
         needlen = KEY_LEN;
 
-        if (evbuffer_get_length(inbuf) < needlen)
+        if (bfy_buffer_get_content_len(inbuf) < needlen)
         {
             return READ_LATER;
         }
@@ -501,7 +502,7 @@ static ReadState readVC(tr_handshake* handshake, struct evbuffer* inbuf)
      * it would be nice to make this cleaner. */
     for (;;)
     {
-        if (evbuffer_get_length(inbuf) < VC_LENGTH)
+        if (bfy_buffer_get_content_len(inbuf) < VC_LENGTH)
         {
             dbgmsg(handshake, "not enough bytes... returning read_more");
             return READ_LATER;
@@ -531,7 +532,7 @@ static ReadState readCryptoSelect(tr_handshake* handshake, struct evbuffer* inbu
     uint32_t crypto_select;
     static size_t const needlen = sizeof(uint32_t) + sizeof(uint16_t);
 
-    if (evbuffer_get_length(inbuf) < needlen)
+    if (bfy_buffer_get_content_len(inbuf) < needlen)
     {
         return READ_LATER;
     }
@@ -565,9 +566,9 @@ static ReadState readPadD(tr_handshake* handshake, struct evbuffer* inbuf)
 {
     size_t const needlen = handshake->pad_d_len;
 
-    dbgmsg(handshake, "pad d: need %zu, got %zu", needlen, evbuffer_get_length(inbuf));
+    dbgmsg(handshake, "pad d: need %zu, got %zu", needlen, bfy_buffer_get_content_len(inbuf));
 
-    if (evbuffer_get_length(inbuf) < needlen)
+    if (bfy_buffer_get_content_len(inbuf) < needlen)
     {
         return READ_LATER;
     }
@@ -586,23 +587,26 @@ static ReadState readPadD(tr_handshake* handshake, struct evbuffer* inbuf)
 ****
 ***/
 
-static ReadState readHandshake(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readHandshake(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     uint8_t pstrlen;
     uint8_t pstr[20];
     uint8_t reserved[HANDSHAKE_FLAGS_LEN];
     uint8_t hash[SHA_DIGEST_LENGTH];
 
-    dbgmsg(handshake, "payload: need %d, got %zu", INCOMING_HANDSHAKE_LEN, evbuffer_get_length(inbuf));
+    dbgmsg(handshake, "payload: need %d, got %zu", INCOMING_HANDSHAKE_LEN, bfy_buffer_get_content_len(inbuf));
 
-    if (evbuffer_get_length(inbuf) < INCOMING_HANDSHAKE_LEN)
+    if (bfy_buffer_get_content_len(inbuf) < INCOMING_HANDSHAKE_LEN)
     {
         return READ_LATER;
     }
 
     handshake->haveReadAnythingFromPeer = true;
 
-    pstrlen = evbuffer_pullup(inbuf, 1)[0]; /* peek, don't read. We may be handing inbuf to AWAITING_YA */
+    /* peek, don't read. We may be handing inbuf to AWAITING_YA */
+    struct bfy_iovec io;
+    bfy_buffer_peek(inbuf, 0, SIZE_MAX, &io, 1);
+    pstrlen = *(char*)io.iov_base;
 
     if (pstrlen == 19) /* unencrypted */
     {
@@ -634,7 +638,7 @@ static ReadState readHandshake(tr_handshake* handshake, struct evbuffer* inbuf)
         }
     }
 
-    evbuffer_drain(inbuf, 1);
+    bfy_buffer_drain(inbuf, 1);
 
     /* pstr (BitTorrent) */
     TR_ASSERT(pstrlen == 19);
@@ -705,14 +709,14 @@ static ReadState readHandshake(tr_handshake* handshake, struct evbuffer* inbuf)
     return READ_NOW;
 }
 
-static ReadState readPeerId(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readPeerId(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     bool connected_to_self;
     char client[128];
     uint8_t peer_id[PEER_ID_LEN];
     tr_torrent* tor;
 
-    if (evbuffer_get_length(inbuf) < PEER_ID_LEN)
+    if (bfy_buffer_get_content_len(inbuf) < PEER_ID_LEN)
     {
         return READ_LATER;
     }
@@ -739,9 +743,9 @@ static ReadState readYa(tr_handshake* handshake, struct evbuffer* inbuf)
     uint8_t const* myKey;
     int len;
 
-    dbgmsg(handshake, "in readYa... need %d, have %zu", KEY_LEN, evbuffer_get_length(inbuf));
+    dbgmsg(handshake, "in readYa... need %d, have %zu", KEY_LEN, bfy_buffer_get_content_len(inbuf));
 
-    if (evbuffer_get_length(inbuf) < KEY_LEN)
+    if (bfy_buffer_get_content_len(inbuf) < KEY_LEN)
     {
         return READ_LATER;
     }
@@ -785,7 +789,7 @@ static ReadState readPadA(tr_handshake* handshake, struct evbuffer* inbuf)
     }
     else
     {
-        size_t const len = evbuffer_get_length(inbuf);
+        size_t const len = bfy_buffer_get_content_len(inbuf);
 
         if (len > SHA_DIGEST_LENGTH)
         {
@@ -811,7 +815,7 @@ static ReadState readCryptoProvide(tr_handshake* handshake, struct evbuffer* inb
         SHA_DIGEST_LENGTH + /* HASH('req2', SKEY) xor HASH('req3', S) */
         VC_LENGTH + sizeof(crypto_provide) + sizeof(padc_len);
 
-    if (evbuffer_get_length(inbuf) < needlen)
+    if (bfy_buffer_get_content_len(inbuf) < needlen)
     {
         return READ_LATER;
     }
@@ -873,7 +877,7 @@ static ReadState readPadC(tr_handshake* handshake, struct evbuffer* inbuf)
     uint16_t ia_len;
     size_t const needlen = handshake->pad_c_len + sizeof(uint16_t);
 
-    if (evbuffer_get_length(inbuf) < needlen)
+    if (bfy_buffer_get_content_len(inbuf) < needlen)
     {
         return READ_LATER;
     }
@@ -897,9 +901,9 @@ static ReadState readIA(tr_handshake* handshake, struct evbuffer* inbuf)
     struct evbuffer* outbuf;
     uint32_t crypto_select;
 
-    dbgmsg(handshake, "reading IA... have %zu, need %zu", evbuffer_get_length(inbuf), needlen);
+    dbgmsg(handshake, "reading IA... have %zu, need %zu", bfy_buffer_get_content_len(inbuf), needlen);
 
-    if (evbuffer_get_length(inbuf) < needlen)
+    if (bfy_buffer_get_content_len(inbuf) < needlen)
     {
         return READ_LATER;
     }
@@ -980,9 +984,9 @@ static ReadState readPayloadStream(tr_handshake* handshake, struct evbuffer* inb
     handshake_parse_err_t i;
     size_t const needlen = HANDSHAKE_SIZE;
 
-    dbgmsg(handshake, "reading payload stream... have %zu, need %zu", evbuffer_get_length(inbuf), needlen);
+    dbgmsg(handshake, "reading payload stream... have %zu, need %zu", bfy_buffer_get_content_len(inbuf), needlen);
 
-    if (evbuffer_get_length(inbuf) < needlen)
+    if (bfy_buffer_get_content_len(inbuf) < needlen)
     {
         return READ_LATER;
     }
@@ -1012,7 +1016,7 @@ static ReadState canRead(struct tr_peerIo* io, void* arg, size_t* piece)
 
     ReadState ret;
     tr_handshake* handshake = arg;
-    struct evbuffer* inbuf = tr_peerIoGetReadBuffer(io);
+    struct bfy_buffer* inbuf = tr_peerIoGetReadBuffer(io);
     bool readyForMore = true;
 
     /* no piece data in handshake */
@@ -1083,15 +1087,15 @@ static ReadState canRead(struct tr_peerIo* io, void* arg, size_t* piece)
         }
         else if (handshake->state == AWAITING_PAD_C)
         {
-            readyForMore = evbuffer_get_length(inbuf) >= handshake->pad_c_len;
+            readyForMore = bfy_buffer_get_content_len(inbuf) >= handshake->pad_c_len;
         }
         else if (handshake->state == AWAITING_PAD_D)
         {
-            readyForMore = evbuffer_get_length(inbuf) >= handshake->pad_d_len;
+            readyForMore = bfy_buffer_get_content_len(inbuf) >= handshake->pad_d_len;
         }
         else if (handshake->state == AWAITING_IA)
         {
-            readyForMore = evbuffer_get_length(inbuf) >= handshake->ia_len;
+            readyForMore = bfy_buffer_get_content_len(inbuf) >= handshake->ia_len;
         }
     }
 
