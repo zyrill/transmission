@@ -385,22 +385,6 @@ int64_t tr_getDirFreeSpace(char const* dir)
 *****
 ****/
 
-char* evbuffer_free_to_str(struct evbuffer* buf, size_t* result_len)
-{
-    size_t const n = evbuffer_get_length(buf);
-    char* ret = tr_new(char, n + 1);
-    evbuffer_copyout(buf, ret, n);
-    evbuffer_free(buf);
-    ret[n] = '\0';
-
-    if (result_len != NULL)
-    {
-        *result_len = n;
-    }
-
-    return ret;
-}
-
 char* tr_strdup(void const* in)
 {
     return tr_strndup(in, in != NULL ? strlen(in) : 0);

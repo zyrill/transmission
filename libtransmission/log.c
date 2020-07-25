@@ -8,8 +8,9 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <sys/time.h>
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 
 #include "transmission.h"
 #include "file.h"
@@ -174,26 +175,28 @@ void tr_logAddDeep(char const* file, int line, char const* name, char const* fmt
 
     if (fp != TR_BAD_SYS_FILE || IsDebuggerPresent())
     {
-        va_list args;
-        char timestr[64];
-        char* message;
-        size_t message_len;
-        struct evbuffer* buf = evbuffer_new();
-        char* base = tr_sys_path_basename(file, NULL);
+        struct bfy_buffer buf = bfy_buffer_init();
 
-        evbuffer_add_printf(buf, "[%s] ", tr_logGetTimeStr(timestr, sizeof(timestr)));
+        char timestr[64];
+        bfy_buffer_add_printf(&buf, "[%s] ", tr_logGetTimeStr(timestr, sizeof(timestr)));
 
         if (name != NULL)
         {
-            evbuffer_add_printf(buf, "%s ", name);
+            bfy_buffer_add_printf(&buf, "%s ", name);
         }
 
+        va_list args;
         va_start(args, fmt);
-        evbuffer_add_vprintf(buf, fmt, args);
+        bfy_buffer_add_vprintf(&buf, fmt, args);
         va_end(args);
-        evbuffer_add_printf(buf, " (%s:%d)" TR_NATIVE_EOL_STR, base, line);
+
+        char* base = tr_sys_path_basename(file, NULL);
+        bfy_buffer_add_printf(&buf, " (%s:%d)" TR_NATIVE_EOL_STR, base, line);
+        tr_free(base);
+
+        size_t message_len;
+        char const* message = bfy_buffer_peek_string(&buf, &message_len);
         /* FIXME (libevent2) ifdef this out for nonwindows platforms */
-        message = evbuffer_free_to_str(buf, &message_len);
         OutputDebugStringA(message);
 
         if (fp != TR_BAD_SYS_FILE)
@@ -201,8 +204,7 @@ void tr_logAddDeep(char const* file, int line, char const* name, char const* fmt
             tr_sys_file_write(fp, message, message_len, NULL, NULL);
         }
 
-        tr_free(message);
-        tr_free(base);
+        bfy_buffer_destruct(&buf);
     }
 }
 
@@ -221,7 +223,7 @@ void tr_logAddMessage(char const* file, int line, tr_log_level level, char const
     /* build the text message */
     *buf = '\0';
     va_start(ap, fmt);
-    buf_len = evutil_vsnprintf(buf, sizeof(buf), fmt, ap);
+    buf_len = vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
 
     if (buf_len < 0)

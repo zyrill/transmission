@@ -8,7 +8,8 @@
 
 #include <string.h> /* strlen() */
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
+#include <event2/util.h>
 
 #include "transmission.h"
 #include "crypto-utils.h" /* tr_sha1 */
@@ -163,7 +164,7 @@ char* tr_metainfo_sanitize_path_component(char const* str, size_t len, bool* is_
     return ret;
 }
 
-static bool getfile(char** setme, bool* is_adjusted, char const* root, tr_variant* path, struct evbuffer* buf)
+static bool getfile(char** setme, bool* is_adjusted, char const* root, tr_variant* path, struct bfy_buffer* buf)
 {
     bool success = false;
     size_t root_len = 0;
@@ -174,9 +175,9 @@ static bool getfile(char** setme, bool* is_adjusted, char const* root, tr_varian
     if (tr_variantIsList(path))
     {
         success = true;
-        evbuffer_drain(buf, evbuffer_get_length(buf));
+        bfy_buffer_drain_all(buf);
         root_len = strlen(root);
-        evbuffer_add(buf, root, root_len);
+        bfy_buffer_add(buf, root, root_len);
 
         for (int i = 0, n = tr_variantListSize(path); i < n; i++)
         {
@@ -198,23 +199,22 @@ static bool getfile(char** setme, bool* is_adjusted, char const* root, tr_varian
 
             *is_adjusted = *is_adjusted || is_component_adjusted;
 
-            evbuffer_add(buf, TR_PATH_DELIMITER_STR, 1);
-            evbuffer_add(buf, final_str, strlen(final_str));
+            bfy_buffer_add(buf, TR_PATH_DELIMITER_STR, 1);
+            bfy_buffer_add(buf, final_str, strlen(final_str));
 
             tr_free(final_str);
         }
     }
 
-    if (success && evbuffer_get_length(buf) <= root_len)
+    if (success && bfy_buffer_get_content_len(buf) <= root_len)
     {
         success = false;
     }
 
     if (success)
     {
-        char const* const buf_data = (char*)evbuffer_pullup(buf, -1);
-        size_t const buf_len = evbuffer_get_length(buf);
-
+        size_t buf_len;
+        char const* const buf_data = bfy_buffer_peek_string(buf, &buf_len);
         *setme = tr_utf8clean(buf_data, buf_len);
 
         if (!*is_adjusted)
@@ -243,9 +243,7 @@ static char const* parseFiles(tr_info* inf, tr_variant* files, tr_variant const*
 
     if (tr_variantIsList(files)) /* multi-file mode */
     {
-        struct evbuffer* buf;
-
-        buf = evbuffer_new();
+        struct bfy_buffer buf = bfy_buffer_init();
         result = NULL;
 
         inf->isFolder = true;
@@ -275,7 +273,7 @@ static char const* parseFiles(tr_info* inf, tr_variant* files, tr_variant const*
             }
 
             bool is_file_adjusted;
-            if (!getfile(&inf->files[i].name, &is_file_adjusted, root_name, path, buf))
+            if (!getfile(&inf->files[i].name, &is_file_adjusted, root_name, path, &buf))
             {
                 result = "path";
                 break;
@@ -292,7 +290,7 @@ static char const* parseFiles(tr_info* inf, tr_variant* files, tr_variant const*
             inf->totalSize += len;
         }
 
-        evbuffer_free(buf);
+        bfy_buffer_destruct(&buf);
     }
     else if (tr_variantGetInt(length, &len)) /* single-file mode */
     {

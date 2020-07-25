@@ -212,8 +212,6 @@ static inline bool tr_str_is_empty(char const* value)
  */
 int tr_memcmp0(void const* lhs, void const* rhs, size_t size);
 
-char* evbuffer_free_to_str(struct evbuffer* buf, size_t* result_len);
-
 /** @brief similar to bsearch() but returns the index of the lower bound */
 int tr_lowerBound(void const* key, void const* base, size_t nmemb, size_t size, tr_voidptr_compare_func compar,
     bool* exact_match) TR_GNUC_HOT TR_GNUC_NONNULL(1, 5, 6);

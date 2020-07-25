@@ -9,7 +9,7 @@
 #include <string.h> /* strcmp() */
 #include <stdio.h>
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 
 #include "transmission.h"
 #include "cache.h"
@@ -49,14 +49,14 @@ struct test_incomplete_dir_data
     tr_block_index_t block;
     tr_piece_index_t pieceIndex;
     uint32_t offset;
-    struct evbuffer* buf;
+    struct bfy_buffer buf;
     bool done;
 };
 
 static void test_incomplete_dir_threadfunc(void* vdata)
 {
     struct test_incomplete_dir_data* data = vdata;
-    tr_cacheWriteBlock(data->session->cache, data->tor, 0, data->offset, data->tor->blockSize, data->buf);
+    tr_cacheWriteBlock(data->session->cache, data->tor, 0, data->offset, data->tor->blockSize, &data->buf);
     tr_torrentGotBlock(data->tor, data->block);
     data->done = true;
 }
@@ -102,13 +102,13 @@ static int test_incomplete_dir_impl(char const* incomplete_dir, char const* down
         data.session = session;
         data.tor = tor;
         data.pieceIndex = 0;
-        data.buf = evbuffer_new();
+        data.buf = bfy_buffer_init();
 
         tr_torGetPieceBlockRange(tor, data.pieceIndex, &first, &last);
 
         for (tr_block_index_t block_index = first; block_index <= last; ++block_index)
         {
-            evbuffer_add(data.buf, zero_block, tor->blockSize);
+            bfy_buffer_add(&data.buf, zero_block, tor->blockSize);
             data.block = block_index;
             data.done = false;
             data.offset = data.block * tor->blockSize;
@@ -121,7 +121,7 @@ static int test_incomplete_dir_impl(char const* incomplete_dir, char const* down
             while (!data.done);
         }
 
-        evbuffer_free(data.buf);
+        bfy_buffer_destruct(&data.buf);
         tr_free(zero_block);
     }
 

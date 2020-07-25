@@ -12,6 +12,7 @@
 #include <string.h> /* strlen(), memchr() */
 
 #include <buffy/buffer.h>
+#include <event2/util.h> /* evutil_strtoll() */
 
 #include "ConvertUTF.h"
 

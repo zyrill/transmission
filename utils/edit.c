@@ -10,7 +10,7 @@
 #include <string.h> /* strlen(), strstr(), strcmp() */
 #include <stdlib.h> /* EXIT_FAILURE */
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 
 #include <libtransmission/transmission.h>
 #include <libtransmission/error.h>
@@ -168,20 +168,22 @@ static bool removeURL(tr_variant* metainfo, char const* url)
 static char* replaceSubstr(char const* str, char const* in, char const* out)
 {
     char* walk;
-    struct evbuffer* buf = evbuffer_new();
+    struct bfy_buffer buf = bfy_buffer_init();
     size_t const inlen = strlen(in);
     size_t const outlen = strlen(out);
 
     while ((walk = strstr(str, in)) != NULL)
     {
-        evbuffer_add(buf, str, walk - str);
-        evbuffer_add(buf, out, outlen);
+        bfy_buffer_add(&buf, str, walk - str);
+        bfy_buffer_add(&buf, out, outlen);
         str = walk + inlen;
     }
 
-    evbuffer_add(buf, str, strlen(str));
+    bfy_buffer_add(&buf, str, strlen(str));
 
-    return evbuffer_free_to_str(buf, NULL);
+    char* ret = bfy_buffer_remove_string(&buf, NULL);
+    bfy_buffer_destruct(&buf);
+    return ret;
 }
 
 static bool replaceURL(tr_variant* metainfo, char const* in, char const* out)

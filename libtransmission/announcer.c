@@ -11,7 +11,7 @@
 #include <stdlib.h> /* qsort() */
 #include <string.h> /* strcmp(), memcpy(), strncmp() */
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 #include <event2/event.h> /* evtimer */
 
 #define __LIBTRANSMISSION_ANNOUNCER_MODULE__
@@ -834,21 +834,20 @@ static void dbgmsg_tier_announce_queue(tr_tier const* tier)
     if (tr_logGetDeepEnabled())
     {
         char name[128];
-        char* message;
-        struct evbuffer* buf = evbuffer_new();
-
         tier_build_log_name(tier, name, sizeof(name));
 
+        struct bfy_buffer buf = bfy_buffer_init();
+        bfy_buffer_ensure_space(&buf, tier->announce_event_count * 20); /* rough guess */
         for (int i = 0; i < tier->announce_event_count; ++i)
         {
             tr_announce_event const e = tier->announce_events[i];
             char const* str = tr_announce_event_get_string(e);
-            evbuffer_add_printf(buf, "[%d:%s]", i, str);
+            bfy_buffer_add_printf(&buf, "[%d:%s]", i, str);
         }
 
-        message = evbuffer_free_to_str(buf, NULL);
+        char const* message = bfy_buffer_peek_string(&buf, NULL);
         tr_logAddDeep(__FILE__, __LINE__, name, "announce queue is %s", message);
-        tr_free(message);
+        bfy_buffer_destruct(&buf);
     }
 }
 

@@ -173,18 +173,18 @@ struct tau_scrape_request
 static struct tau_scrape_request* tau_scrape_request_new(tr_scrape_request const* in, tr_scrape_response_func callback,
     void* user_data)
 {
-    struct evbuffer* buf;
     struct tau_scrape_request* req;
     tau_transaction_t const transaction_id = tau_transaction_new();
 
     /* build the payload */
-    buf = evbuffer_new();
-    evbuffer_add_hton_32(buf, TAU_ACTION_SCRAPE);
-    evbuffer_add_hton_32(buf, transaction_id);
+    struct bfy_buffer buf = bfy_buffer_init();
+    bfy_buffer_ensure_space(&buf, (sizeof(uint32_t) * 2) + (in->info_hash_count * SHA_DIGEST_LENGTH));
+    bfy_buffer_add_hton_u32(&buf, TAU_ACTION_SCRAPE);
+    bfy_buffer_add_hton_u32(&buf, transaction_id);
 
     for (int i = 0; i < in->info_hash_count; ++i)
     {
-        evbuffer_add(buf, in->info_hash[i], SHA_DIGEST_LENGTH);
+        bfy_buffer_add(&buf, in->info_hash[i], SHA_DIGEST_LENGTH);
     }
 
     /* build the tau_scrape_request */
@@ -195,8 +195,8 @@ static struct tau_scrape_request* tau_scrape_request_new(tr_scrape_request const
     req->user_data = user_data;
     req->response.url = tr_strdup(in->url);
     req->response.row_count = in->info_hash_count;
-    req->payload_len = evbuffer_get_length(buf);
-    req->payload = tr_memdup(evbuffer_pullup(buf, -1), req->payload_len);
+    req->payload_len = bfy_buffer_get_content_len(&buf);
+    req->payload = tr_memdup(bfy_buffer_make_all_contiguous(&buf), req->payload_len);
 
     for (int i = 0; i < req->response.row_count; ++i)
     {
@@ -207,7 +207,7 @@ static struct tau_scrape_request* tau_scrape_request_new(tr_scrape_request const
     }
 
     /* cleanup */
-    evbuffer_free(buf);
+    bfy_buffer_destruct(&buf);
     return req;
 }
 
@@ -329,24 +329,24 @@ static tau_announce_event get_tau_announce_event(tr_announce_event e)
 static struct tau_announce_request* tau_announce_request_new(tr_announce_request const* in, tr_announce_response_func callback,
     void* user_data)
 {
-    struct evbuffer* buf;
     struct tau_announce_request* req;
     tau_transaction_t const transaction_id = tau_transaction_new();
 
     /* build the payload */
-    buf = evbuffer_new();
-    evbuffer_add_hton_32(buf, TAU_ACTION_ANNOUNCE);
-    evbuffer_add_hton_32(buf, transaction_id);
-    evbuffer_add(buf, in->info_hash, SHA_DIGEST_LENGTH);
-    evbuffer_add(buf, in->peer_id, PEER_ID_LEN);
-    evbuffer_add_hton_64(buf, in->down);
-    evbuffer_add_hton_64(buf, in->leftUntilComplete);
-    evbuffer_add_hton_64(buf, in->up);
-    evbuffer_add_hton_32(buf, get_tau_announce_event(in->event));
-    evbuffer_add_hton_32(buf, 0);
-    evbuffer_add_hton_32(buf, in->key);
-    evbuffer_add_hton_32(buf, in->numwant);
-    evbuffer_add_hton_16(buf, in->port);
+    struct bfy_buffer buf = bfy_buffer_init();
+    bfy_buffer_ensure_space(&buf, sizeof(uint64_t)*3 + sizeof(uint32_t)*6 + sizeof(uint16_t)*1 + SHA_DIGEST_LENGTH + PEER_ID_LEN);
+    bfy_buffer_add_hton_u32(&buf, TAU_ACTION_ANNOUNCE);
+    bfy_buffer_add_hton_u32(&buf, transaction_id);
+    bfy_buffer_add(&buf, in->info_hash, SHA_DIGEST_LENGTH);
+    bfy_buffer_add(&buf, in->peer_id, PEER_ID_LEN);
+    bfy_buffer_add_hton_u64(&buf, in->down);
+    bfy_buffer_add_hton_u64(&buf, in->leftUntilComplete);
+    bfy_buffer_add_hton_u64(&buf, in->up);
+    bfy_buffer_add_hton_u32(&buf, get_tau_announce_event(in->event));
+    bfy_buffer_add_hton_u32(&buf, 0);
+    bfy_buffer_add_hton_u32(&buf, in->key);
+    bfy_buffer_add_hton_u32(&buf, in->numwant);
+    bfy_buffer_add_hton_u16(&buf, in->port);
 
     /* build the tau_announce_request */
     req = tr_new0(struct tau_announce_request, 1);
@@ -354,14 +354,14 @@ static struct tau_announce_request* tau_announce_request_new(tr_announce_request
     req->transaction_id = transaction_id;
     req->callback = callback;
     req->user_data = user_data;
-    req->payload_len = evbuffer_get_length(buf);
-    req->payload = tr_memdup(evbuffer_pullup(buf, -1), req->payload_len);
+    req->payload_len = bfy_buffer_get_content_len(&buf);
+    req->payload = tr_memdup(bfy_buffer_make_all_contiguous(&buf), req->payload_len);
     req->response.seeders = -1;
     req->response.leechers = -1;
     req->response.downloads = -1;
     memcpy(req->response.info_hash, in->info_hash, SHA_DIGEST_LENGTH);
 
-    evbuffer_free(buf);
+    bfy_buffer_destruct(&buf);
     return req;
 }
 
@@ -526,12 +526,14 @@ static void tau_tracker_on_dns(int errcode, struct evutil_addrinfo* addr, void* 
 
 static void tau_tracker_send_request(struct tau_tracker* tracker, void const* payload, size_t payload_len)
 {
-    struct evbuffer* buf = evbuffer_new();
     dbgmsg(tracker->key, "sending request w/connection id %" PRIu64 "\n", tracker->connection_id);
-    evbuffer_add_hton_64(buf, tracker->connection_id);
-    evbuffer_add_reference(buf, payload, payload_len, NULL, NULL);
-    tau_sendto(tracker->session, tracker->addr, tracker->port, evbuffer_pullup(buf, -1), evbuffer_get_length(buf));
-    evbuffer_free(buf);
+
+    bfy_buffer buf = bfy_buffer_init();
+    bfy_buffer_ensure_space(&buf, sizeof(uint64_t) + payload_len);
+    bfy_buffer_add_hton_u64(&buf, tracker->connection_id);
+    bfy_buffer_add_readonly(&buf, payload, payload_len);
+    tau_sendto(tracker->session, tracker->addr, tracker->port, bfy_buffer_make_all_contiguous(&buf), bfy_buffer_get_content_len(&buf));
+    bfy_buffer_destruct(&buf);
 }
 
 static void tau_tracker_send_reqs(struct tau_tracker* tracker)
@@ -715,15 +717,16 @@ static void tau_tracker_upkeep_ex(struct tau_tracker* tracker, bool timeout_reqs
     /* also need a valid connection ID... */
     if (tracker->addr != NULL && tracker->connection_expiration_time <= now && tracker->connecting_at == 0)
     {
-        struct evbuffer* buf = evbuffer_new();
         tracker->connecting_at = now;
         tracker->connection_transaction_id = tau_transaction_new();
         dbgmsg(tracker->key, "Trying to connect. Transaction ID is %u", tracker->connection_transaction_id);
-        evbuffer_add_hton_64(buf, 0x41727101980LL);
-        evbuffer_add_hton_32(buf, TAU_ACTION_CONNECT);
-        evbuffer_add_hton_32(buf, tracker->connection_transaction_id);
-        tau_sendto(tracker->session, tracker->addr, tracker->port, evbuffer_pullup(buf, -1), evbuffer_get_length(buf));
-        evbuffer_free(buf);
+        struct bfy_buffer buf = bfy_buffer_init();
+        bfy_buffer_ensure_space(&buf, sizeof(uint64_t) + sizeof(uint32_t)*2);
+        bfy_buffer_add_hton_u64(&buf, 0x41727101980LL);
+        bfy_buffer_add_hton_u32(&buf, TAU_ACTION_CONNECT);
+        bfy_buffer_add_hton_u32(&buf, tracker->connection_transaction_id);
+        tau_sendto(tracker->session, tracker->addr, tracker->port, bfy_buffer_make_all_contiguous(&buf), bfy_buffer_get_content_len(&buf));
+        bfy_buffer_destruct(&buf);
         return;
     }
 

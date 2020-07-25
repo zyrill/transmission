@@ -227,7 +227,7 @@ typedef enum
 }
 handshake_parse_err_t;
 
-static handshake_parse_err_t parseHandshake(tr_handshake* handshake, struct evbuffer* inbuf)
+static handshake_parse_err_t parseHandshake(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     uint8_t name[HANDSHAKE_NAME_LEN];
     uint8_t reserved[HANDSHAKE_FLAGS_LEN];
@@ -379,11 +379,9 @@ static void computeRequestHash(tr_handshake const* handshake, char const* name, 
     tr_cryptoSecretKeySha1(handshake->crypto, name, 4, NULL, 0, hash);
 }
 
-static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readYb(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     bool isEncrypted;
-    uint8_t yb[KEY_LEN];
-    struct evbuffer* outbuf;
     size_t needlen = HANDSHAKE_NAME_LEN;
 
     if (bfy_buffer_get_content_len(inbuf) < needlen)
@@ -391,7 +389,7 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
         return READ_LATER;
     }
 
-    isEncrypted = memcmp(evbuffer_pullup(inbuf, HANDSHAKE_NAME_LEN), HANDSHAKE_NAME, HANDSHAKE_NAME_LEN) != 0;
+    isEncrypted = memcmp(bfy_buffer_make_contiguous(inbuf, HANDSHAKE_NAME_LEN), HANDSHAKE_NAME, HANDSHAKE_NAME_LEN) != 0;
 
     if (isEncrypted)
     {
@@ -416,7 +414,8 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
     handshake->haveReadAnythingFromPeer = true;
 
     /* compute the secret */
-    evbuffer_remove(inbuf, yb, KEY_LEN);
+    uint8_t yb[KEY_LEN];
+    bfy_buffer_remove(inbuf, KEY_LEN, yb);
 
     if (!tr_cryptoComputeSecret(handshake->crypto, yb))
     {
@@ -425,13 +424,13 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
 
     /* now send these: HASH('req1', S), HASH('req2', SKEY) xor HASH('req3', S),
      * ENCRYPT(VC, crypto_provide, len(PadC), PadC, len(IA)), ENCRYPT(IA) */
-    outbuf = evbuffer_new();
+    struct bfy_buffer outbuf = bfy_buffer_init();
 
     /* HASH('req1', S) */
     {
         uint8_t req1[SHA_DIGEST_LENGTH];
         computeRequestHash(handshake, "req1", req1);
-        evbuffer_add(outbuf, req1, SHA_DIGEST_LENGTH);
+        bfy_buffer_add(&outbuf, req1, SHA_DIGEST_LENGTH);
     }
 
     /* HASH('req2', SKEY) xor HASH('req3', S) */
@@ -448,7 +447,7 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
             buf[i] = req2[i] ^ req3[i];
         }
 
-        evbuffer_add(outbuf, buf, SHA_DIGEST_LENGTH);
+        bfy_buffer_add(&outbuf, buf, SHA_DIGEST_LENGTH);
     }
 
     /* ENCRYPT(VC, crypto_provide, len(PadC), PadC
@@ -457,13 +456,13 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
     {
         uint8_t vc[VC_LENGTH] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-        tr_peerIoWriteBuf(handshake->io, outbuf, false);
+        tr_peerIoWriteBuf(handshake->io, &outbuf, false);
         tr_cryptoEncryptInit(handshake->crypto);
         tr_peerIoSetEncryption(handshake->io, PEER_ENCRYPTION_RC4);
 
-        evbuffer_add(outbuf, vc, VC_LENGTH);
-        evbuffer_add_uint32(outbuf, getCryptoProvide(handshake));
-        evbuffer_add_uint16(outbuf, 0);
+        bfy_buffer_add(&outbuf, vc, VC_LENGTH);
+        bfy_buffer_add_hton_u32(&outbuf, getCryptoProvide(handshake));
+        bfy_buffer_add_hton_u16(&outbuf, 0);
     }
 
     /* ENCRYPT len(IA)), ENCRYPT(IA) */
@@ -475,8 +474,8 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
             return tr_handshakeDone(handshake, false);
         }
 
-        evbuffer_add_uint16(outbuf, sizeof(msg));
-        evbuffer_add(outbuf, msg, sizeof(msg));
+        bfy_buffer_add_hton_u16(&outbuf, sizeof(msg));
+        bfy_buffer_add(&outbuf, msg, sizeof(msg));
 
         handshake->haveSentBitTorrentHandshake = true;
     }
@@ -484,16 +483,15 @@ static ReadState readYb(tr_handshake* handshake, struct evbuffer* inbuf)
     /* send it */
     tr_cryptoDecryptInit(handshake->crypto);
     setReadState(handshake, AWAITING_VC);
-    tr_peerIoWriteBuf(handshake->io, outbuf, false);
+    tr_peerIoWriteBuf(handshake->io, &outbuf, false);
 
     /* cleanup */
-    evbuffer_free(outbuf);
+    bfy_buffer_destruct(&outbuf);
     return READ_LATER;
 }
 
-static ReadState readVC(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readVC(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
-    uint8_t tmp[VC_LENGTH];
     int const key_len = VC_LENGTH;
     uint8_t const key[VC_LENGTH] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -508,7 +506,8 @@ static ReadState readVC(tr_handshake* handshake, struct evbuffer* inbuf)
             return READ_LATER;
         }
 
-        memcpy(tmp, evbuffer_pullup(inbuf, key_len), key_len);
+        uint8_t tmp[VC_LENGTH];
+        bfy_buffer_copyout(inbuf, key_len, tmp);
         tr_cryptoDecryptInit(handshake->crypto);
         tr_cryptoDecrypt(handshake->crypto, key_len, tmp, tmp);
 
@@ -517,16 +516,16 @@ static ReadState readVC(tr_handshake* handshake, struct evbuffer* inbuf)
             break;
         }
 
-        evbuffer_drain(inbuf, 1);
+        bfy_buffer_drain(inbuf, 1);
     }
 
     dbgmsg(handshake, "got it!");
-    evbuffer_drain(inbuf, key_len);
+    bfy_buffer_drain(inbuf, key_len);
     setState(handshake, AWAITING_CRYPTO_SELECT);
     return READ_NOW;
 }
 
-static ReadState readCryptoSelect(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readCryptoSelect(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     uint16_t pad_d_len;
     uint32_t crypto_select;
@@ -562,7 +561,7 @@ static ReadState readCryptoSelect(tr_handshake* handshake, struct evbuffer* inbu
     return READ_NOW;
 }
 
-static ReadState readPadD(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readPadD(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     size_t const needlen = handshake->pad_d_len;
 
@@ -605,7 +604,7 @@ static ReadState readHandshake(tr_handshake* handshake, struct bfy_buffer* inbuf
 
     /* peek, don't read. We may be handing inbuf to AWAITING_YA */
     struct bfy_iovec io;
-    bfy_buffer_peek(inbuf, 0, SIZE_MAX, &io, 1);
+    bfy_buffer_peek_all(inbuf, &io, 1);
     pstrlen = *(char*)io.iov_base;
 
     if (pstrlen == 19) /* unencrypted */
@@ -735,9 +734,8 @@ static ReadState readPeerId(tr_handshake* handshake, struct bfy_buffer* inbuf)
     return tr_handshakeDone(handshake, !connected_to_self);
 }
 
-static ReadState readYa(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readYa(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
-    uint8_t ya[KEY_LEN];
     uint8_t* walk;
     uint8_t outbuf[KEY_LEN + PadB_MAXLEN];
     uint8_t const* myKey;
@@ -751,7 +749,8 @@ static ReadState readYa(tr_handshake* handshake, struct evbuffer* inbuf)
     }
 
     /* read the incoming peer's public key */
-    evbuffer_remove(inbuf, ya, KEY_LEN);
+    uint8_t ya[KEY_LEN];
+    bfy_buffer_remove(inbuf, KEY_LEN, ya);
 
     if (!tr_cryptoComputeSecret(handshake->crypto, ya))
     {
@@ -775,14 +774,13 @@ static ReadState readYa(tr_handshake* handshake, struct evbuffer* inbuf)
     return READ_NOW;
 }
 
-static ReadState readPadA(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readPadA(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     /* resynchronizing on HASH('req1', S) */
-    struct evbuffer_ptr ptr = evbuffer_search(inbuf, (char const*)handshake->myReq1, SHA_DIGEST_LENGTH, NULL);
-
-    if (ptr.pos != -1) /* match */
+    size_t offset = 0;
+    if (bfy_buffer_search_all(inbuf, handshake->myReq1, SHA_DIGEST_LENGTH, &offset) != -1) /* match */
     {
-        evbuffer_drain(inbuf, ptr.pos);
+        bfy_buffer_drain(inbuf, offset);
         dbgmsg(handshake, "found it... looking setting to awaiting_crypto_provide");
         setState(handshake, AWAITING_CRYPTO_PROVIDE);
         return READ_NOW;
@@ -793,14 +791,14 @@ static ReadState readPadA(tr_handshake* handshake, struct evbuffer* inbuf)
 
         if (len > SHA_DIGEST_LENGTH)
         {
-            evbuffer_drain(inbuf, len - SHA_DIGEST_LENGTH);
+            bfy_buffer_drain(inbuf, len - SHA_DIGEST_LENGTH);
         }
 
         return READ_LATER;
     }
 }
 
-static ReadState readCryptoProvide(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readCryptoProvide(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     /* HASH('req2', SKEY) xor HASH('req3', S), ENCRYPT(VC, crypto_provide, len(PadC)) */
 
@@ -821,13 +819,13 @@ static ReadState readCryptoProvide(tr_handshake* handshake, struct evbuffer* inb
     }
 
     /* TODO: confirm they sent HASH('req1',S) here? */
-    evbuffer_drain(inbuf, SHA_DIGEST_LENGTH);
+    bfy_buffer_drain(inbuf, SHA_DIGEST_LENGTH);
 
     /* This next piece is HASH('req2', SKEY) xor HASH('req3', S) ...
      * we can get the first half of that (the obufscatedTorrentHash)
      * by building the latter and xor'ing it with what the peer sent us */
     dbgmsg(handshake, "reading obfuscated torrent hash...");
-    evbuffer_remove(inbuf, req2, SHA_DIGEST_LENGTH);
+    bfy_buffer_remove(inbuf, SHA_DIGEST_LENGTH, req2);
     computeRequestHash(handshake, "req3", req3);
 
     for (int i = 0; i < SHA_DIGEST_LENGTH; ++i)
@@ -871,7 +869,7 @@ static ReadState readCryptoProvide(tr_handshake* handshake, struct evbuffer* inb
     return READ_NOW;
 }
 
-static ReadState readPadC(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readPadC(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     char* padc;
     uint16_t ia_len;
@@ -895,10 +893,9 @@ static ReadState readPadC(tr_handshake* handshake, struct evbuffer* inbuf)
     return READ_NOW;
 }
 
-static ReadState readIA(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readIA(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     size_t const needlen = handshake->ia_len;
-    struct evbuffer* outbuf;
     uint32_t crypto_select;
 
     dbgmsg(handshake, "reading IA... have %zu, need %zu", bfy_buffer_get_content_len(inbuf), needlen);
@@ -913,13 +910,14 @@ static ReadState readIA(tr_handshake* handshake, struct evbuffer* inbuf)
     **/
 
     tr_cryptoEncryptInit(handshake->crypto);
-    outbuf = evbuffer_new();
+    struct bfy_buffer outbuf = bfy_buffer_init();
+    bfy_buffer_ensure_space(&outbuf, VC_LENGTH + sizeof(uint32_t) + sizeof(uint16_t));
 
     {
         /* send VC */
-        uint8_t vc[VC_LENGTH];
-        memset(vc, 0, VC_LENGTH);
-        evbuffer_add(outbuf, vc, VC_LENGTH);
+        struct bfy_iovec iov = bfy_buffer_reserve_space(&outbuf, VC_LENGTH);
+        memset(iov.iov_base, 0, VC_LENGTH);
+        bfy_buffer_commit_space(&outbuf, VC_LENGTH);
         dbgmsg(handshake, "sending vc");
     }
 
@@ -929,12 +927,12 @@ static ReadState readIA(tr_handshake* handshake, struct evbuffer* inbuf)
     if (crypto_select != 0)
     {
         dbgmsg(handshake, "selecting crypto mode '%d'", (int)crypto_select);
-        evbuffer_add_uint32(outbuf, crypto_select);
+        bfy_buffer_add_hton_u32(&outbuf, crypto_select);
     }
     else
     {
         dbgmsg(handshake, "peer didn't offer an encryption mode we like.");
-        evbuffer_free(outbuf);
+        bfy_buffer_destruct(&outbuf);
         return tr_handshakeDone(handshake, false);
     }
 
@@ -945,13 +943,13 @@ static ReadState readIA(tr_handshake* handshake, struct evbuffer* inbuf)
      * standard practice at this time is for it to be zero-length */
     {
         uint16_t const len = 0;
-        evbuffer_add_uint16(outbuf, len);
+        bfy_buffer_add_hton_u16(&outbuf, len);
     }
 
     /* maybe de-encrypt our connection */
     if (crypto_select == CRYPTO_PROVIDE_PLAINTEXT)
     {
-        tr_peerIoWriteBuf(handshake->io, outbuf, false);
+        tr_peerIoWriteBuf(handshake->io, &outbuf, false);
         tr_peerIoSetEncryption(handshake->io, PEER_ENCRYPTION_NONE);
     }
 
@@ -959,27 +957,27 @@ static ReadState readIA(tr_handshake* handshake, struct evbuffer* inbuf)
 
     /* send our handshake */
     {
-        uint8_t msg[HANDSHAKE_SIZE];
+        struct bfy_iovec iov = bfy_buffer_reserve_space(&outbuf, HANDSHAKE_SIZE);
 
-        if (!buildHandshakeMessage(handshake, msg))
+        if (!buildHandshakeMessage(handshake, iov.iov_base))
         {
             return tr_handshakeDone(handshake, false);
         }
 
-        evbuffer_add(outbuf, msg, sizeof(msg));
+        bfy_buffer_commit_space(&outbuf, HANDSHAKE_SIZE);
         handshake->haveSentBitTorrentHandshake = true;
     }
 
     /* send it out */
-    tr_peerIoWriteBuf(handshake->io, outbuf, false);
-    evbuffer_free(outbuf);
+    tr_peerIoWriteBuf(handshake->io, &outbuf, false);
+    bfy_buffer_destruct(&outbuf);
 
     /* now await the handshake */
     setState(handshake, AWAITING_PAYLOAD_STREAM);
     return READ_NOW;
 }
 
-static ReadState readPayloadStream(tr_handshake* handshake, struct evbuffer* inbuf)
+static ReadState readPayloadStream(tr_handshake* handshake, struct bfy_buffer* inbuf)
 {
     handshake_parse_err_t i;
     size_t const needlen = HANDSHAKE_SIZE;

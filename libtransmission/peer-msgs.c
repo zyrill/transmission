@@ -141,7 +141,7 @@ struct tr_incoming
     uint8_t id;
     uint32_t length; /* includes the +1 for id length */
     struct peer_request blockReq; /* metadata for incoming blocks */
-    struct evbuffer* block; /* piece data for incoming blocks */
+    struct bfy_buffer* block; /* piece data for incoming blocks */
 };
 
 /**
@@ -956,7 +956,7 @@ static void sendLtepHandshake(tr_peerMsgs* msgs)
     tr_variantFree(&val);
 }
 
-static void parseLtepHandshake(tr_peerMsgs* msgs, uint32_t len, struct evbuffer* inbuf)
+static void parseLtepHandshake(tr_peerMsgs* msgs, uint32_t len, struct bfy_buffer* inbuf)
 {
     int64_t i;
     tr_variant val;
@@ -1075,7 +1075,7 @@ static void parseLtepHandshake(tr_peerMsgs* msgs, uint32_t len, struct evbuffer*
     tr_free(tmp);
 }
 
-static void parseUtMetadata(tr_peerMsgs* msgs, uint32_t msglen, struct evbuffer* inbuf)
+static void parseUtMetadata(tr_peerMsgs* msgs, uint32_t msglen, struct bfy_buffer* inbuf)
 {
     tr_variant dict;
     char* msg_end;
@@ -1146,7 +1146,7 @@ static void parseUtMetadata(tr_peerMsgs* msgs, uint32_t msglen, struct evbuffer*
     tr_free(tmp);
 }
 
-static void parseUtPex(tr_peerMsgs* msgs, uint32_t msglen, struct evbuffer* inbuf)
+static void parseUtPex(tr_peerMsgs* msgs, uint32_t msglen, struct bfy_buffer* inbuf)
 {
     tr_torrent* tor = msgs->torrent;
     if (!tr_torrentAllowsPex(tor))
@@ -1239,7 +1239,7 @@ static void parseUtPex(tr_peerMsgs* msgs, uint32_t msglen, struct evbuffer* inbu
 
 static void sendPex(tr_peerMsgs* msgs);
 
-static void parseLtep(tr_peerMsgs* msgs, uint32_t msglen, struct evbuffer* inbuf)
+static void parseLtep(tr_peerMsgs* msgs, uint32_t msglen, struct bfy_buffer* inbuf)
 {
     TR_ASSERT(msglen > 0);
 
@@ -1274,11 +1274,11 @@ static void parseLtep(tr_peerMsgs* msgs, uint32_t msglen, struct evbuffer* inbuf
     else
     {
         dbgmsg(msgs, "skipping unknown ltep message (%d)", (int)ltep_msgid);
-        evbuffer_drain(inbuf, msglen);
+        bfy_buffer_drain(inbuf, msglen);
     }
 }
 
-static int readBtLength(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen)
+static int readBtLength(tr_peerMsgs* msgs, struct bfy_buffer* inbuf, size_t inlen)
 {
     uint32_t len;
 
@@ -1302,9 +1302,9 @@ static int readBtLength(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen)
     return READ_NOW;
 }
 
-static int readBtMessage(tr_peerMsgs*, struct evbuffer*, size_t);
+static int readBtMessage(tr_peerMsgs*, struct bfy_buffer*, size_t);
 
-static int readBtId(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen)
+static int readBtId(tr_peerMsgs* msgs, struct bfy_buffer* inbuf, size_t inlen)
 {
     uint8_t id;
 
@@ -1452,9 +1452,9 @@ static bool messageLengthIsCorrect(tr_peerMsgs const* msg, uint8_t id, uint32_t 
     }
 }
 
-static int clientGotBlock(tr_peerMsgs* msgs, struct evbuffer* block, struct peer_request const* req);
+static int clientGotBlock(tr_peerMsgs* msgs, struct bfy_buffer* block, struct peer_request const* req);
 
-static int readBtPiece(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen, size_t* setme_piece_bytes_read)
+static int readBtPiece(tr_peerMsgs* msgs, struct bfy_buffer* inbuf, size_t inlen, size_t* setme_piece_bytes_read)
 {
     TR_ASSERT(bfy_buffer_get_content_len(inbuf) >= inlen);
 
@@ -1480,11 +1480,11 @@ static int readBtPiece(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen, 
         int err;
         size_t n;
         size_t nLeft;
-        struct evbuffer* block_buffer;
+        struct bfy_buffer* block_buffer;
 
         if (msgs->incoming.block == NULL)
         {
-            msgs->incoming.block = evbuffer_new();
+            msgs->incoming.block = bfy_buffer_new();
         }
 
         block_buffer = msgs->incoming.block;
@@ -1507,7 +1507,7 @@ static int readBtPiece(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen, 
 
         /* pass the block along... */
         err = clientGotBlock(msgs, block_buffer, req);
-        evbuffer_drain(block_buffer, bfy_buffer_get_content_len(block_buffer));
+        bfy_buffer_drain_all(block_buffer);
 
         /* cleanup */
         req->length = 0;
@@ -1518,7 +1518,7 @@ static int readBtPiece(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen, 
 
 static void updateDesiredRequestCount(tr_peerMsgs* msgs);
 
-static int readBtMessage(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen)
+static int readBtMessage(tr_peerMsgs* msgs, struct bfy_buffer* inbuf, size_t inlen)
 {
     uint8_t const id = msgs->incoming.id;
 #ifdef TR_ENABLE_ASSERTS
@@ -1770,7 +1770,7 @@ static int readBtMessage(tr_peerMsgs* msgs, struct evbuffer* inbuf, size_t inlen
 }
 
 /* returns 0 on success, or an errno on failure */
-static int clientGotBlock(tr_peerMsgs* msgs, struct evbuffer* data, struct peer_request const* req)
+static int clientGotBlock(tr_peerMsgs* msgs, struct bfy_buffer* data, struct peer_request const* req)
 {
     TR_ASSERT(msgs != NULL);
     TR_ASSERT(req != NULL);
@@ -1840,7 +1840,7 @@ static ReadState canRead(tr_peerIo* io, void* vmsgs, size_t* piece)
 {
     ReadState ret;
     tr_peerMsgs* msgs = vmsgs;
-    struct evbuffer* in = tr_peerIoGetReadBuffer(io);
+    struct bfy_buffer* in = tr_peerIoGetReadBuffer(io);
     size_t const inlen = bfy_buffer_get_content_len(in);
 
     dbgmsg(msgs, "canRead: inlen is %zu, msgs->state is %d", inlen, msgs->state);
@@ -2151,7 +2151,7 @@ static size_t fillOutputBuffer(tr_peerMsgs* msgs, time_t now)
                 size_t const n = bfy_buffer_get_content_len(&out);
                 dbgmsg(msgs, "sending block %u:%u->%u", req.index, req.offset, req.length);
                 TR_ASSERT(n == msglen);
-                tr_peerIoWriteBuf(msgs->io, out, true);
+                tr_peerIoWriteBuf(msgs->io, &out, true);
                 bytesWritten += n;
                 msgs->clientSentAnythingAt = now;
                 tr_historyAdd(&msgs->peer.blocksSentToPeer, tr_time(), 1);
@@ -2609,7 +2609,7 @@ static void peermsgs_destruct(tr_peer* peer)
 
     if (msgs->incoming.block != NULL)
     {
-        evbuffer_free(msgs->incoming.block);
+        bfy_buffer_free(msgs->incoming.block);
     }
 
     if (msgs->io != NULL)

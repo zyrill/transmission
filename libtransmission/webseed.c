@@ -27,7 +27,7 @@
 struct tr_webseed_task
 {
     bool dead;
-    struct evbuffer* content;
+    struct bfy_buffer content;
     struct tr_webseed* webseed;
     tr_session* session;
     tr_block_index_t block;
@@ -136,7 +136,7 @@ struct write_block_data
     tr_session* session;
     int torrent_id;
     struct tr_webseed* webseed;
-    struct evbuffer* content;
+    struct bfy_buffer content;
     tr_piece_index_t piece_index;
     tr_block_index_t block_index;
     tr_block_index_t count;
@@ -147,7 +147,7 @@ static void write_block_func(void* vdata)
 {
     struct write_block_data* data = vdata;
     struct tr_webseed* w = data->webseed;
-    struct evbuffer* buf = data->content;
+    struct bfy_buffer* buf = &data->content;
     struct tr_torrent* tor;
 
     tor = tr_torrentFindFromId(data->session, data->torrent_id);
@@ -155,7 +155,7 @@ static void write_block_func(void* vdata)
     if (tor != NULL)
     {
         uint32_t const block_size = tor->blockSize;
-        uint32_t len = evbuffer_get_length(buf);
+        uint32_t len = bfy_buffer_get_content_len(buf);
         uint32_t const offset_end = data->block_offset + len;
         tr_cache* cache = data->session->cache;
         tr_piece_index_t const piece = data->piece_index;
@@ -173,7 +173,7 @@ static void write_block_func(void* vdata)
         }
     }
 
-    evbuffer_free(buf);
+    bfy_buffer_destruct(buf);
     tr_free(data);
 }
 
@@ -224,7 +224,7 @@ static void connection_succeeded(void* vdata)
 ****
 ***/
 
-static void on_content_changed(struct evbuffer* buf, struct evbuffer_cb_info const* info, void* vtask)
+static void on_content_changed(struct bfy_buffer* buf, struct bfy_changed_cb_info const* info, void* vtask)
 {
     size_t const n_added = info->n_added;
     struct tr_webseed_task* task = vtask;
@@ -239,7 +239,7 @@ static void on_content_changed(struct evbuffer* buf, struct evbuffer_cb_info con
 
         tr_bandwidthUsed(&w->bandwidth, TR_DOWN, n_added, true, tr_time_msec());
         fire_client_got_piece_data(w, n_added);
-        len = evbuffer_get_length(buf);
+        len = bfy_buffer_get_content_len(buf);
 
         if (task->response_code == 0)
         {
@@ -279,13 +279,13 @@ static void on_content_changed(struct evbuffer* buf, struct evbuffer_cb_info con
             data->block_index = task->block + task->blocks_done;
             data->count = completed;
             data->block_offset = task->piece_offset + task->blocks_done * block_size;
-            data->content = evbuffer_new();
+            data->content = bfy_buffer_init();
             data->torrent_id = w->torrent_id;
             data->session = w->session;
 
             /* we don't use locking on this evbuffer so we must copy out the data
                that will be needed when writing the block in a different thread */
-            evbuffer_remove_buffer(task->content, data->content, block_size * completed);
+            bfy_buffer_remove_buffer(&task->content, block_size * completed, &data->content);
 
             tr_runInEventThread(w->session, write_block_func, data);
             task->blocks_done += completed;
@@ -352,8 +352,8 @@ static void on_idle(tr_webseed* w)
             task->blocks_done = 0;
             task->response_code = 0;
             task->block_size = tor->blockSize;
-            task->content = evbuffer_new();
-            evbuffer_add_cb(task->content, on_content_changed, task);
+            task->content = bfy_buffer_init();
+            bfy_buffer_set_changed_cb(&task->content, on_content_changed, task);
             tr_list_append(&w->tasks, task);
             task_request_next_chunk(task);
         }
@@ -372,7 +372,7 @@ static void web_response_func(tr_session* session, bool did_connect UNUSED, bool
 
     if (t->dead)
     {
-        evbuffer_free(t->content);
+        bfy_buffer_destruct(&t->content);
         tr_free(t);
         return;
     }
@@ -408,13 +408,13 @@ static void web_response_func(tr_session* session, bool did_connect UNUSED, bool
             }
 
             tr_list_remove_data(&w->tasks, t);
-            evbuffer_free(t->content);
+            bfy_buffer_destruct(&t->content);
             tr_free(t);
         }
         else
         {
             uint32_t const bytes_done = t->blocks_done * tor->blockSize;
-            uint32_t const buf_len = evbuffer_get_length(t->content);
+            uint32_t const buf_len = bfy_buffer_get_content_len(&t->content);
 
             if (bytes_done + buf_len < t->length)
             {
@@ -429,7 +429,7 @@ static void web_response_func(tr_session* session, bool did_connect UNUSED, bool
                 {
                     /* on_content_changed() will not write a block if it is smaller than
                        the torrent's block size, i.e. the torrent's very last block */
-                    tr_cacheWriteBlock(session->cache, tor, t->piece_index, t->piece_offset + bytes_done, buf_len, t->content);
+                    tr_cacheWriteBlock(session->cache, tor, t->piece_index, t->piece_offset + bytes_done, buf_len, &t->content);
 
                     fire_client_got_blocks(tor, t->webseed, t->block + t->blocks_done, 1);
                 }
@@ -437,7 +437,7 @@ static void web_response_func(tr_session* session, bool did_connect UNUSED, bool
                 ++w->idle_connections;
 
                 tr_list_remove_data(&w->tasks, t);
-                evbuffer_free(t->content);
+                bfy_buffer_destruct(&t->content);
                 tr_free(t);
 
                 on_idle(w);
@@ -474,7 +474,7 @@ static void task_request_next_chunk(struct tr_webseed_task* t)
         char** urls = t->webseed->file_urls;
 
         tr_info const* inf = tr_torrentInfo(tor);
-        uint64_t const remain = t->length - t->blocks_done * tor->blockSize - evbuffer_get_length(t->content);
+        uint64_t const remain = t->length - t->blocks_done * tor->blockSize - bfy_buffer_get_content_len(&t->content);
 
         uint64_t const total_offset = tr_pieceOffset(tor, t->piece_index, t->piece_offset, t->length - remain);
         tr_piece_index_t const step_piece = total_offset / inf->pieceSize;
@@ -496,7 +496,7 @@ static void task_request_next_chunk(struct tr_webseed_task* t)
 
         tr_snprintf(range, sizeof(range), "%" PRIu64 "-%" PRIu64, file_offset, file_offset + this_pass - 1);
 
-        t->web_task = tr_webRunWebseed(tor, urls[file_index], range, web_response_func, t, t->content);
+        t->web_task = tr_webRunWebseed(tor, urls[file_index], range, web_response_func, t, &t->content);
     }
 }
 

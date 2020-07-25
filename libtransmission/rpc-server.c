@@ -413,7 +413,11 @@ static void serve_file(struct evhttp_request* req, struct tr_rpc_server* server,
             add_time_header(req->output_headers, "Date", now);
             add_time_header(req->output_headers, "Expires", now + (24 * 60 * 60));
             add_response(req, server, &out, &content);
-            evhttp_send_reply(req, HTTP_OK, "OK", &out);
+
+            struct evbuffer* evb = evbuffer_new();
+            evbuffer_add(evb, bfy_buffer_make_all_contiguous(&out), bfy_buffer_get_content_len(&out));
+            evhttp_send_reply(req, HTTP_OK, "OK", evb);
+            evbuffer_free(evb);
 
             bfy_buffer_destruct(&out);
             bfy_buffer_destruct(&content);
@@ -479,7 +483,11 @@ static void rpc_response_func(tr_session* session UNUSED, tr_variant* response, 
 
     add_response(data->req, data->server, &buf, response_buf);
     evhttp_add_header(data->req->output_headers, "Content-Type", "application/json; charset=UTF-8");
-    evhttp_send_reply(data->req, HTTP_OK, "OK", &buf);
+
+    struct evbuffer* evb = evbuffer_new();
+    evbuffer_add(evb, bfy_buffer_make_all_contiguous(&buf), bfy_buffer_get_content_len(&buf));
+    evhttp_send_reply(data->req, HTTP_OK, "OK", evb);
+    evbuffer_free(evb);
 
     bfy_buffer_destruct(&buf);
     bfy_buffer_free(response_buf);

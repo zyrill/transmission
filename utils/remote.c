@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h> /* strcmp */
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 #include <event2/util.h>
 
 #define CURL_DISABLE_TYPECHECK /* otherwise -Wunreachable-code goes insane */
@@ -782,7 +782,7 @@ static tr_quark const list_keys[] =
 static size_t writeFunc(void* ptr, size_t size, size_t nmemb, void* buf)
 {
     size_t const byteCount = size * nmemb;
-    evbuffer_add(buf, ptr, byteCount);
+    bfy_buffer_add(buf, ptr, byteCount);
     return byteCount;
 }
 
@@ -2087,7 +2087,7 @@ static int processResponse(char const* rpcurl, void const* response, size_t len)
     return status;
 }
 
-static CURL* tr_curl_easy_init(struct evbuffer* writebuf)
+static CURL* tr_curl_easy_init(struct bfy_buffer* writebuf)
 {
     CURL* curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_USERAGENT, MY_NAME "/" LONG_VERSION_STRING);
@@ -2147,11 +2147,11 @@ static int flush(char const* rpcurl, tr_variant** benc)
     CURLcode res;
     CURL* curl;
     int status = EXIT_SUCCESS;
-    struct evbuffer* buf = evbuffer_new();
+    struct bfy_buffer buf = bfy_buffer_init();
     char* json = tr_variantToStr(*benc, TR_VARIANT_FMT_JSON_LEAN, NULL);
     char* rpcurl_http = tr_strdup_printf(UseSSL ? "https://%s" : "http://%s", rpcurl);
 
-    curl = tr_curl_easy_init(buf);
+    curl = tr_curl_easy_init(&buf);
     curl_easy_setopt(curl, CURLOPT_URL, rpcurl_http);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, getTimeoutSecs(json));
@@ -2174,7 +2174,7 @@ static int flush(char const* rpcurl, tr_variant** benc)
         switch (response)
         {
         case 200:
-            status |= processResponse(rpcurl, (char const*)evbuffer_pullup(buf, -1), evbuffer_get_length(buf));
+            status |= processResponse(rpcurl, bfy_buffer_make_all_contiguous(&buf), bfy_buffer_get_content_len(&buf));
             break;
 
         case 409:
@@ -2188,8 +2188,7 @@ static int flush(char const* rpcurl, tr_variant** benc)
             break;
 
         default:
-            evbuffer_add(buf, "", 1);
-            fprintf(stderr, "Unexpected response: %s\n", evbuffer_pullup(buf, -1));
+            fprintf(stderr, "Unexpected response: %s\n", bfy_buffer_peek_string(&buf, NULL));
             status |= EXIT_FAILURE;
             break;
         }
@@ -2198,7 +2197,7 @@ static int flush(char const* rpcurl, tr_variant** benc)
     /* cleanup */
     tr_free(rpcurl_http);
     tr_free(json);
-    evbuffer_free(buf);
+    bfy_buffer_destruct(&buf);
 
     if (curl != NULL)
     {

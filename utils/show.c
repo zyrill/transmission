@@ -14,7 +14,7 @@
 #define CURL_DISABLE_TYPECHECK /* otherwise -Wunreachable-code goes insane */
 #include <curl/curl.h>
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 
 #include <libtransmission/transmission.h>
 #include <libtransmission/tr-getopt.h>
@@ -211,11 +211,11 @@ static void showInfo(tr_info const* inf)
 static size_t writeFunc(void* ptr, size_t size, size_t nmemb, void* buf)
 {
     size_t const byteCount = size * nmemb;
-    evbuffer_add(buf, ptr, byteCount);
+    bfy_buffer_add(buf, ptr, byteCount);
     return byteCount;
 }
 
-static CURL* tr_curl_easy_init(struct evbuffer* writebuf)
+static CURL* tr_curl_easy_init(struct bfy_buffer* writebuf)
 {
     CURL* curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_USERAGENT, MY_NAME "/" LONG_VERSION_STRING);
@@ -233,7 +233,6 @@ static void doScrape(tr_info const* inf)
     {
         CURL* curl;
         CURLcode res;
-        struct evbuffer* buf;
         char const* scrape = inf->trackers[i].scrape;
         char* url;
         char escaped[SHA_DIGEST_LENGTH * 3 + 1];
@@ -250,8 +249,8 @@ static void doScrape(tr_info const* inf)
         printf("%s ... ", url);
         fflush(stdout);
 
-        buf = evbuffer_new();
-        curl = tr_curl_easy_init(buf);
+        bfy_buffer buf = bfy_buffer_init();
+        curl = tr_curl_easy_init(&buf);
         curl_easy_setopt(curl, CURLOPT_URL, url);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, TIMEOUT_SECS);
 
@@ -273,9 +272,9 @@ static void doScrape(tr_info const* inf)
                 tr_variant top;
                 tr_variant* files;
                 bool matched = false;
-                char const* begin = (char const*)evbuffer_pullup(buf, -1);
+                char const* begin = bfy_buffer_make_all_contiguous(&buf);
 
-                if (tr_variantFromBenc(&top, begin, evbuffer_get_length(buf)) == 0)
+                if (tr_variantFromBenc(&top, begin, bfy_buffer_get_content_len(&buf)) == 0)
                 {
                     if (tr_variantDictFindDict(&top, TR_KEY_files, &files))
                     {
@@ -318,7 +317,7 @@ static void doScrape(tr_info const* inf)
         }
 
         curl_easy_cleanup(curl);
-        evbuffer_free(buf);
+        bfy_buffer_destruct(&buf);
         tr_free(url);
     }
 }

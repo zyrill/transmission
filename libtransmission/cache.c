@@ -8,7 +8,7 @@
 
 #include <stdlib.h> /* qsort() */
 
-#include <event2/buffer.h>
+#include <buffy/buffer.h>
 
 #include "transmission.h"
 #include "cache.h"
@@ -40,7 +40,7 @@ struct cache_block
     time_t time;
     tr_block_index_t block;
 
-    struct evbuffer* evbuf;
+    struct bfy_buffer buf;
 };
 
 struct tr_cache
@@ -177,9 +177,9 @@ static int flushContiguous(tr_cache* cache, int pos, int n)
     for (int i = 0; i < n; ++i)
     {
         b = blocks[pos + i];
-        evbuffer_copyout(b->evbuf, walk, b->length);
+        bfy_buffer_copyout(&b->buf, b->length, walk);
         walk += b->length;
-        evbuffer_free(b->evbuf);
+        bfy_buffer_destruct(&b->buf);
         tr_free(b);
     }
 
@@ -318,7 +318,7 @@ static struct cache_block* findBlock(tr_cache* cache, tr_torrent* torrent, tr_pi
 }
 
 int tr_cacheWriteBlock(tr_cache* cache, tr_torrent* torrent, tr_piece_index_t piece, uint32_t offset, uint32_t length,
-    struct evbuffer* writeme)
+    struct bfy_buffer* writeme)
 {
     TR_ASSERT(tr_amInEventThread(torrent->session));
 
@@ -332,7 +332,7 @@ int tr_cacheWriteBlock(tr_cache* cache, tr_torrent* torrent, tr_piece_index_t pi
         cb->offset = offset;
         cb->length = length;
         cb->block = _tr_block(torrent, piece, offset);
-        cb->evbuf = evbuffer_new();
+        cb->buf = bfy_buffer_init();
         tr_ptrArrayInsertSorted(&cache->blocks, cb, cache_block_compare);
     }
 
@@ -340,8 +340,8 @@ int tr_cacheWriteBlock(tr_cache* cache, tr_torrent* torrent, tr_piece_index_t pi
 
     cb->time = tr_time();
 
-    evbuffer_drain(cb->evbuf, evbuffer_get_length(cb->evbuf));
-    evbuffer_remove_buffer(writeme, cb->evbuf, cb->length);
+    bfy_buffer_drain_all(&cb->buf);
+    bfy_buffer_remove_buffer(writeme, cb->length, &cb->buf);
 
     cache->cache_writes++;
     cache->cache_write_bytes += cb->length;
@@ -357,7 +357,7 @@ int tr_cacheReadBlock(tr_cache* cache, tr_torrent* torrent, tr_piece_index_t pie
 
     if (cb != NULL)
     {
-        evbuffer_copyout(cb->evbuf, setme, len);
+        bfy_buffer_copyout(&cb->buf, len, setme);
     }
     else
     {

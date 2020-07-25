@@ -25,7 +25,8 @@
 #include "peer-socket.h"
 #include "utils.h" /* tr_time() */
 
-struct bfy_buffer;
+#include <buffy/buffer.h>
+
 struct tr_bandwidth;
 struct tr_datatype;
 struct tr_peerIo;
@@ -96,8 +97,8 @@ typedef struct tr_peerIo
     struct tr_bandwidth bandwidth;
     tr_crypto crypto;
 
-    struct bfy_buffer* inbuf;
-    struct bfy_buffer* outbuf;
+    struct bfy_buffer inbuf;
+    struct bfy_buffer outbuf;
     struct tr_datatype* outbuf_datatypes;
 
     struct event* event_read;
@@ -308,7 +309,7 @@ int tr_peerIoFlushOutgoingProtocolMsgs(tr_peerIo* io);
 
 static inline struct bfy_buffer* tr_peerIoGetReadBuffer(tr_peerIo* io)
 {
-    return io->inbuf;
+    return &io->inbuf;
 }
 
 /* @} */
