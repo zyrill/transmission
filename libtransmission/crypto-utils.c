@@ -195,18 +195,13 @@ void* tr_base64_encode(void const* input, size_t input_length, size_t* output_le
     {
         if (input_length != 0)
         {
-            size_t ret_length = 4 * ((input_length + 2) / 3);
             base64_encodestate state;
-
-#ifdef USE_SYSTEM_B64
-            /* Additional space is needed for newlines if we're using unpatched libb64 */
-            ret_length += ret_length / 72 + 1;
-#endif
-
-            ret = tr_new(char, ret_length + 8);
-
             base64_init_encodestate(&state);
-            ret_length = base64_encode_block(input, input_length, ret, &state);
+            state.chars_per_line = 0;
+
+            ret = tr_new(char, base64_encode_length(input_length, &state) + 1);
+
+            size_t ret_length = base64_encode_block(input, input_length, ret, &state);
             ret_length += base64_encode_blockend(ret + ret_length, &state);
 
             if (output_length != NULL)
@@ -249,13 +244,12 @@ void* tr_base64_decode(void const* input, size_t input_length, size_t* output_le
     {
         if (input_length != 0)
         {
-            size_t ret_length = input_length / 4 * 3;
             base64_decodestate state;
-
-            ret = tr_new(char, ret_length + 8);
-
             base64_init_decodestate(&state);
-            ret_length = base64_decode_block(input, input_length, ret, &state);
+
+            ret = tr_new(char, base64_decode_maxlength(input_length) + 1);
+
+            size_t ret_length = base64_decode_block(input, input_length, ret, &state);
 
             if (output_length != NULL)
             {

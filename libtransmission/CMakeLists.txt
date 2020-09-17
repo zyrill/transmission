@@ -216,10 +216,6 @@ if(MINIUPNPC_VERSION VERSION_LESS 1.7)
     add_definitions(-DMINIUPNPC_API_VERSION=${MINIUPNPC_API_VERSION})
 endif()
 
-if(USE_SYSTEM_B64)
-    add_definitions(-DUSE_SYSTEM_B64)
-endif()
-
 if(CYASSL_IS_WOLFSSL)
     add_definitions(-DCYASSL_IS_WOLFSSL)
 endif()
@@ -243,7 +239,6 @@ include_directories(
     ${MINIUPNPC_INCLUDE_DIRS}
     ${DHT_INCLUDE_DIRS}
     ${UTP_INCLUDE_DIRS}
-    ${B64_INCLUDE_DIRS}
 )
 
 if(ICONV_FOUND)
@@ -264,8 +259,7 @@ foreach(UT ${EVENT2_UPSTREAM_TARGET}
            ${NATPMP_UPSTREAM_TARGET}
            ${MINIUPNPC_UPSTREAM_TARGET}
            ${DHT_UPSTREAM_TARGET}
-           ${UTP_UPSTREAM_TARGET}
-           ${B64_UPSTREAM_TARGET})
+           ${UTP_UPSTREAM_TARGET})
     add_dependencies(${TR_NAME} ${UT})
 endforeach()
 
@@ -279,7 +273,7 @@ target_link_libraries(${TR_NAME}
     ${MINIUPNPC_LIBRARIES}
     ${DHT_LIBRARIES}
     ${UTP_LIBRARIES}
-    ${B64_LIBRARIES}
+    libb64::libb64
     ${LIBINTL_LIBRARY}
     ${LIBM_LIBRARY}
     ${TR_NETWORK_LIBRARIES}

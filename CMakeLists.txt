@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(transmission)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
@@ -338,7 +338,13 @@ if(ENABLE_UTP)
     endif()
 endif()
 
-tr_add_external_auto_library(B64 libb64 b64)
+tr_get_required_flag(USE_SYSTEM_B64 B64_IS_REQUIRED)
+if(USE_SYSTEM_B64)
+    find_package(libb64 2.0.1 ${B64_IS_REQUIRED} QUIET)
+endif()
+if(NOT TARGET libb64::libb64)
+    add_subdirectory(${THIRD_PARTY_DIR}/libb64)
+endif()
 
 if(WITH_INOTIFY)
     tr_get_required_flag(WITH_INOTIFY INOTIFY_IS_REQUIRED)
