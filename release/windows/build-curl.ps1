@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 
-$global:CurlVersion = '7.70.0'
+$global:CurlVersion = '7.72.0'
 
 $global:CurlDeps = @(
     'OpenSsl'
