@@ -107,22 +107,21 @@ void FaviconCache::ensureCacheDirHasBeenScanned()
 
 QString FaviconCache::getDisplayName(Key const& key)
 {
-    auto name = key;
-    name[0] = name.at(0).toTitleCase();
-    return name;
+    return key;
 }
 
 FaviconCache::Key FaviconCache::getKey(QUrl const& url)
 {
-    auto host = url.host();
+    QString host = url.host().toLower();
+    int const first_dot = host.indexOf(QLatin1Char('.'));
+    int const last_dot = host.lastIndexOf(QLatin1Char('.'));
 
-    // remove tld
-    auto const suffix = url.topLevelDomain();
-    host.truncate(host.size() - suffix.size());
+    if (first_dot != -1 && last_dot != -1 && first_dot != last_dot)
+    {
+        host.remove(0, first_dot + 1);
+    }
 
-    // remove subdomain
-    auto const pos = host.indexOf(QLatin1Char('.'));
-    return pos < 0 ? host : host.remove(0, pos + 1);
+    return host;
 }
 
 FaviconCache::Key FaviconCache::getKey(QString const& displayName)
