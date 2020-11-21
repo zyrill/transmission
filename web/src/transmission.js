@@ -50,7 +50,7 @@ export class Transmission extends EventTarget {
     );
 
     // Initialize the implementation fields
-    this.filterText = '';
+    this.filter_text = '';
     this._torrents = {};
     this._rows = [];
     this.dirtyTorrents = new Set();
@@ -612,7 +612,7 @@ export class Transmission extends EventTarget {
   }
 
   _setFilterText(search) {
-    this.filterText = search ? search.trim() : null;
+    this.filter_text = search ? search.trim() : null;
     this.refilterAllSoon();
   }
 
@@ -878,22 +878,25 @@ TODO: fix this when notifications get fixed
     const names = Object.keys(trackers).sort();
 
     // build the new html
-    let string = '';
-    string += !this.filterTracker
-      ? '<option value="all" selected="selected">All</option>'
-      : '<option value="all">All</option>';
+    const fragments = [];
+    fragments.push(
+      this.filter_tracker
+        ? '<option value="all">All</option>'
+        : '<option value="all" selected="selected">All</option>'
+    );
     for (const name of names) {
       const o = trackers[name];
-      string += `<option value="${o.domain}"`;
-      if (trackers[name].domain === this.filterTracker) {
-        string += ' selected="selected"';
+      fragments.push(`<option value="${o.domain}"`);
+      if (o.domain === this.filter_tracker) {
+        fragments.push(' selected="selected"');
       }
-      string += `>${name}</option>`;
+      fragments.push(`>${name}</option>`);
     }
 
-    if (!this.filterTrackersStr || this.filterTrackersStr !== string) {
-      this.filterTrackersStr = string;
-      document.querySelector('#filter-tracker').innerHTML = string;
+    const html = fragments.join('');
+    if (!this.filter_trackers_html !== html) {
+      this.filter_trackers_html = html;
+      document.querySelector('#filter-tracker').innerHTML = html;
     }
   }
 
@@ -915,8 +918,7 @@ TODO: fix this when notifications get fixed
 
   _refilter(rebuildEverything) {
     const { sort_mode, sort_direction, filter_mode } = this.prefs;
-    const filter_text = this.filterText;
-    const filter_tracker = this.filterTracker;
+    const { filter_text, filter_tracker } = this;
     const renderer = this.torrentRenderer;
     const list = this.elements.torrent_list;
 
@@ -1054,7 +1056,7 @@ TODO: fix this when notifications get fixed
     const e = document.querySelector('#filter-tracker');
     e.value = domain ? Transmission._getReadableDomain(domain) : 'all';
 
-    this.filterTracker = domain;
+    this.filter_tracker = domain;
     this.refilterAllSoon();
   }
 
