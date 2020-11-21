@@ -407,7 +407,7 @@ export class Torrent extends EventTarget {
    * @return true if it passes the test, false if it fails
    */
   test(state, search, tracker) {
-    // flter by state...
+    // filter by state...
     let pass = this.testState(state);
 
     // maybe filter by text...
@@ -423,37 +423,37 @@ export class Torrent extends EventTarget {
     return pass;
   }
 
-  static compareById(ta, tb) {
+  static _compareById(ta, tb) {
     return ta.getId() - tb.getId();
   }
-  static compareByName(ta, tb) {
+  static _compareByName(ta, tb) {
     return (
       ta.getCollatedName().localeCompare(tb.getCollatedName()) ||
-      Torrent.compareById(ta, tb)
+      this._compareById(ta, tb)
     );
   }
-  static compareByQueue(ta, tb) {
+  static _compareByQueue(ta, tb) {
     return ta.getQueuePosition() - tb.getQueuePosition();
   }
-  static compareByAge(ta, tb) {
+  static _compareByAge(ta, tb) {
     const a = ta.getDateAdded();
     const b = tb.getDateAdded();
 
-    return b - a || Torrent.compareByQueue(ta, tb);
+    return b - a || this._compareByQueue(ta, tb);
   }
-  static compareByState(ta, tb) {
+  static _compareByState(ta, tb) {
     const a = ta.getStatus();
     const b = tb.getStatus();
 
-    return b - a || Torrent.compareByQueue(ta, tb);
+    return b - a || this._compareByQueue(ta, tb);
   }
-  static compareByActivity(ta, tb) {
+  static _compareByActivity(ta, tb) {
     const a = ta.getActivity();
     const b = tb.getActivity();
 
-    return b - a || Torrent.compareByState(ta, tb);
+    return b - a || this._compareByState(ta, tb);
   }
-  static compareByRatio(ta, tb) {
+  static _compareByRatio(ta, tb) {
     const a = ta.getUploadRatio();
     const b = tb.getUploadRatio();
 
@@ -463,19 +463,19 @@ export class Torrent extends EventTarget {
     if (a > b) {
       return -1;
     }
-    return Torrent.compareByState(ta, tb);
+    return this._compareByState(ta, tb);
   }
-  static compareByProgress(ta, tb) {
+  static _compareByProgress(ta, tb) {
     const a = ta.getPercentDone();
     const b = tb.getPercentDone();
 
-    return a - b || Torrent.compareByRatio(ta, tb);
+    return a - b || this._compareByRatio(ta, tb);
   }
-  static compareBySize(ta, tb) {
+  static _compareBySize(ta, tb) {
     const a = ta.getTotalSize();
     const b = tb.getTotalSize();
 
-    return a - b || Torrent.compareByName(ta, tb);
+    return a - b || this._compareByName(ta, tb);
   }
 
   static compareTorrents(a, b, sortMode, sortDirection) {
@@ -483,32 +483,32 @@ export class Torrent extends EventTarget {
 
     switch (sortMode) {
       case Prefs.SortByActivity:
-        index = Torrent.compareByActivity(a, b);
+        index = this._compareByActivity(a, b);
         break;
       case Prefs.SortByAge:
-        index = Torrent.compareByAge(a, b);
+        index = this._compareByAge(a, b);
         break;
       case Prefs.SortByQueue:
-        index = Torrent.compareByQueue(a, b);
+        index = this._compareByQueue(a, b);
         break;
       case Prefs.SortByProgress:
-        index = Torrent.compareByProgress(a, b);
+        index = this._compareByProgress(a, b);
         break;
       case Prefs.SortBySize:
-        index = Torrent.compareBySize(a, b);
+        index = this._compareBySize(a, b);
         break;
       case Prefs.SortByState:
-        index = Torrent.compareByState(a, b);
+        index = this._compareByState(a, b);
         break;
       case Prefs.SortByRatio:
-        index = Torrent.compareByRatio(a, b);
+        index = this._compareByRatio(a, b);
         break;
       case Prefs.SortByName:
-        index = Torrent.compareByName(a, b);
+        index = this._compareByName(a, b);
         break;
       default:
         console.log(`Unrecognized sort mode: ${sortMode}`);
-        index = Torrent.compareByName(a, b);
+        index = this._compareByName(a, b);
         break;
     }
 
@@ -527,32 +527,32 @@ export class Torrent extends EventTarget {
   static sortTorrents(torrents, sortMode, sortDirection) {
     switch (sortMode) {
       case Prefs.SortByActivity:
-        torrents.sort(this.compareByActivity);
+        torrents.sort(this._compareByActivity);
         break;
       case Prefs.SortByAge:
-        torrents.sort(this.compareByAge);
+        torrents.sort(this._compareByAge);
         break;
       case Prefs.SortByName:
-        torrents.sort(this.compareByName);
+        torrents.sort(this._compareByName);
         break;
       case Prefs.SortByProgress:
-        torrents.sort(this.compareByProgress);
+        torrents.sort(this._compareByProgress);
         break;
       case Prefs.SortByQueue:
-        torrents.sort(this.compareByQueue);
+        torrents.sort(this._compareByQueue);
         break;
       case Prefs.SortByRatio:
-        torrents.sort(this.compareByRatio);
+        torrents.sort(this._compareByRatio);
         break;
       case Prefs.SortBySize:
-        torrents.sort(this.compareBySize);
+        torrents.sort(this._compareBySize);
         break;
       case Prefs.SortByState:
-        torrents.sort(this.compareByState);
+        torrents.sort(this._compareByState);
         break;
       default:
         console.log(`Unrecognized sort mode: ${sortMode}`);
-        torrents.sort(this.compareByName);
+        torrents.sort(this._compareByName);
         break;
     }
 
