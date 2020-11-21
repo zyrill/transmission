@@ -159,14 +159,14 @@ export class TorrentRendererFull {
     }
 
     const sizeWhenDone = t.getSizeWhenDone();
-    const totalSize = t.getTotalSize();
     const is_done = t.isDone() || t.isSeeding();
     const c = [];
 
     if (is_done) {
-      if (totalSize === sizeWhenDone) {
+      const total_size = t.getTotalSize();
+      if (total_size === sizeWhenDone) {
         // seed: '698.05 MiB'
-        c.push(Formatter.size(totalSize));
+        c.push(Formatter.size(total_size));
       } else {
         // partial seed: '127.21 MiB of 698.05 MiB (18.2%)'
         c.push(
