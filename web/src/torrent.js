@@ -57,29 +57,17 @@ export class Torrent extends EventTarget {
   constructor(data) {
     super();
 
-    this.fieldObservers = {};
     this.fields = {};
     this.refresh(data);
   }
 
-  notifyOnFieldChange(field, callback) {
-    this.fieldObservers[field] = this.fieldObservers[field] || [];
-    this.fieldObservers[field].push(callback);
-  }
-
-  setField(o, name, value) {
+  static _setField(o, name, value) {
     const old_value = o[name];
 
     if (deepEqual(old_value, value)) {
       return false;
     }
 
-    const observers = this.fieldObservers[name];
-    if (o === this.fields && observers && observers.length > 0) {
-      for (const observer of observers) {
-        observer.call(this, value, old_value, name);
-      }
-    }
     o[name] = value;
     return true;
   }
@@ -94,7 +82,7 @@ export class Torrent extends EventTarget {
       const myfile = myfiles[index] || {};
       for (const key of keys) {
         if (key in f) {
-          changed |= this.setField(myfile, key, f[key]);
+          changed |= Torrent._setField(myfile, key, f[key]);
         }
       }
       myfiles[index] = myfile;
@@ -117,15 +105,15 @@ export class Torrent extends EventTarget {
           changed |= this.updateFiles(value);
           break;
         case 'trackerStats': // 'trackerStats' is a superset of 'trackers'...
-          changed |= this.setField(this.fields, 'trackers', value);
+          changed |= Torrent._setField(this.fields, 'trackers', value);
           break;
         case 'trackers': // ...so only save 'trackers' if we don't have it already
           if (!(key in this.fields)) {
-            changed |= this.setField(this.fields, key, value);
+            changed |= Torrent._setField(this.fields, key, value);
           }
           break;
         default:
-          changed |= this.setField(this.fields, key, value);
+          changed |= Torrent._setField(this.fields, key, value);
       }
     }
 
