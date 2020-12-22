@@ -90,17 +90,9 @@ tr_torrent* tr_torrentFindFromId(tr_session* session, int id)
 
 tr_torrent* tr_torrentFindFromHashString(tr_session* session, char const* str)
 {
-    tr_torrent* tor = NULL;
-
-    while ((tor = tr_torrentNext(session, tor)) != NULL)
-    {
-        if (evutil_ascii_strcasecmp(str, tor->info.hashString) == 0)
-        {
-            return tor;
-        }
-    }
-
-    return NULL;
+    uint8_t hash[SHA_DIGEST_LENGTH];
+    tr_hex_to_sha1(hash, str);
+    return tr_torrentFindFromHash(session, hash);
 }
 
 tr_torrent* tr_torrentFindFromHash(tr_session* session, uint8_t const* torrentHash)
@@ -109,9 +101,16 @@ tr_torrent* tr_torrentFindFromHash(tr_session* session, uint8_t const* torrentHa
 
     while ((tor = tr_torrentNext(session, tor)) != NULL)
     {
-        if ((*tor->info.hash == *torrentHash) && (memcmp(tor->info.hash, torrentHash, SHA_DIGEST_LENGTH) == 0))
+        int const cmp = memcmp(tor->info.hash, torrentHash, SHA_DIGEST_LENGTH);
+
+        if (cmp == 0)
         {
             return tor;
+        }
+
+        if (cmp > 0)
+        {
+            break;
         }
     }
 
@@ -881,6 +880,11 @@ static bool setLocalErrorIfFilesDisappeared(tr_torrent* tor)
     return disappeared;
 }
 
+static int compareTorrentByHash(tr_torrent const* a, tr_torrent const* b)
+{
+    return memcmp(a->info.hash, b->info.hash, SHA_DIGEST_LENGTH);
+}
+
 static void torrentInit(tr_torrent* tor, tr_ctor const* ctor)
 {
     tr_session* session = tr_ctorGetSession(ctor);
@@ -974,23 +978,28 @@ static void torrentInit(tr_torrent* tor, tr_ctor const* ctor)
         tr_torrentSetIdleLimit(tor, tr_sessionGetIdleLimit(tor->session));
     }
 
-    /* add the torrent to tr_session.torrentList */
-    session->torrentCount++;
+    // insert tor into torrentList, sorted by hash
 
-    if (session->torrentList == NULL)
+    ++session->torrentCount;
+
+    if ((session->torrentList == NULL) || compareTorrentByHash(tor, session->torrentList) < 0)
     {
+        tor->next = session->torrentList;
         session->torrentList = tor;
     }
     else
     {
-        tr_torrent* it = session->torrentList;
+        tr_torrent* prev = session->torrentList;
+        tr_torrent* it = prev->next;
 
-        while (it->next != NULL)
+        while ((it != NULL) && (compareTorrentByHash(it, tor) < 0))
         {
+            prev = it;
             it = it->next;
         }
 
-        it->next = tor;
+        prev->next = tor;
+        tor->next = it;
     }
 
     /* if we don't have a local .torrent file already, assume the torrent is new */
