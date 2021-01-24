@@ -42,6 +42,8 @@ If you're new to building programs from source code, this is typically easier th
 
 ### Building Transmission from Git (first time)
 
+Make sure to have the following packages installed: autoconf, automake, cmake, curl-dev, g++, libtool.
+
     $ git clone https://github.com/transmission/transmission Transmission
     $ cd Transmission
     $ git submodule update --init
